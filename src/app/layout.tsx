@@ -24,16 +24,16 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const SITE = "https://alphasync.vercel.app";
+const SITE = "https://primestone.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: "AlphaSync — Copy the world's best traders, automatically",
-    template: "%s · AlphaSync",
+    default: "PrimeStone — Copy the world's best traders, automatically",
+    template: "%s · PrimeStone",
   },
   description:
-    "AlphaSync mirrors verified strategy providers straight into your account. Transparent track records, real risk controls, M-Pesa, card and crypto funding, and a full demo desk to practise on.",
+    "PrimeStone mirrors verified strategy providers straight into your account. Transparent track records, real risk controls, M-Pesa, card and crypto funding, and a full demo desk to practise on.",
   keywords: [
     "copy trading",
     "social trading",
@@ -45,14 +45,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: SITE,
-    siteName: "AlphaSync",
-    title: "AlphaSync — Copy the world's best traders, automatically",
+    siteName: "PrimeStone",
+    title: "PrimeStone — Copy the world's best traders, automatically",
     description:
       "Mirror verified strategy providers into your account in one click. Audited track records, real risk controls, instant funding.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AlphaSync — Copy the world's best traders",
+    title: "PrimeStone — Copy the world's best traders",
     description:
       "Mirror verified strategy providers into your account in one click.",
   },

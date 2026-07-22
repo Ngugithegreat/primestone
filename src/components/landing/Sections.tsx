@@ -284,7 +284,7 @@ export function Features() {
               </h3>
               <p className="mt-3 max-w-lg text-[14.5px] leading-relaxed text-slate-400">
                 A provider trading 5 lots on a $500,000 book does not put 5 lots on your
-                $2,000. AlphaSync sizes every mirrored trade to your allocation, respects
+                $2,000. PrimeStone sizes every mirrored trade to your allocation, respects
                 your leverage cap, and skips any signal that would breach your margin.
               </p>
 
@@ -699,7 +699,7 @@ function ShowcaseFrame({ variant }: { variant: string }) {
         <span className="h-2.5 w-2.5 rounded-full bg-amber-450/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-mint-500/70" />
         <div className="ml-3 flex-1 rounded-md border border-white/[0.06] bg-ink-950/60 px-3 py-1 text-[11px] text-slate-500">
-          app.alphasync.com/{variant === "chart" ? "trade" : variant}
+          app.primestone.co.ke/{variant === "chart" ? "trade" : variant}
         </div>
       </div>
 
@@ -1197,7 +1197,7 @@ export function SiteFooter() {
           <div>
             <Link href="/" className="inline-flex items-center gap-2.5">
               <span className="font-display text-[19px] font-semibold tracking-tight text-white">
-                Alpha<span className="text-mint-400">Sync</span>
+                Prime<span className="text-mint-400">Stone</span>
               </span>
             </Link>
             <p className="mt-4 max-w-sm text-[13.5px] leading-relaxed text-slate-400">
@@ -1245,14 +1245,14 @@ export function SiteFooter() {
             before you fund an account.
           </p>
           <p className="text-[11.5px] leading-relaxed text-slate-500">
-            AlphaSync is a demonstration project. It does not hold client money, is not
+            PrimeStone is a demonstration project. It does not hold client money, is not
             authorised by any financial regulator, and executes no real orders. All prices,
             strategy providers, track records and balances shown are simulated for
             illustrative purposes.
           </p>
           <div className="flex flex-col items-start justify-between gap-3 pt-2 sm:flex-row sm:items-center">
             <p className="text-[12.5px] text-slate-500">
-              © {new Date().getFullYear()} AlphaSync. All rights reserved.
+              © {new Date().getFullYear()} PrimeStone. All rights reserved.
             </p>
             <p className="text-[12.5px] text-slate-500">Built for demonstration purposes.</p>
           </div>

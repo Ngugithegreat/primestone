@@ -143,7 +143,7 @@ function seedTxns(now: number, credit: number): Txn[] {
       amount: credit,
       fee: 0,
       status: "completed",
-      reference: "AS-WELCOME-01",
+      reference: "PS-WELCOME-01",
       detail: "Welcome demo credit",
       createdAt: now,
     },
@@ -485,7 +485,7 @@ export const useStore = create<Store>()(
           amount: round(amount, 2),
           fee: 0,
           status: instant ? "completed" : "processing",
-          reference: `AS-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+          reference: `PS-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
           detail,
           createdAt: Date.now(),
         };
@@ -510,7 +510,7 @@ export const useStore = create<Store>()(
           amount: round(amount, 2),
           fee,
           status: "pending",
-          reference: `AS-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+          reference: `PS-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
           detail,
           createdAt: Date.now(),
         };
@@ -562,7 +562,7 @@ export const useStore = create<Store>()(
       },
     }),
     {
-      name: "alphasync.session.v1",
+      name: "primestone.session.v1",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         user: s.user,

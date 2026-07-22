@@ -1,8 +1,8 @@
 {
-  "name": "alphasync",
+  "name": "primestone",
   "version": "1.0.0",
   "private": true,
-  "description": "AlphaSync — a professional copy-trading platform.",
+  "description": "PrimeStone — a professional copy-trading platform.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

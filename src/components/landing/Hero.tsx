@@ -310,7 +310,7 @@ export function Hero() {
               transition={{ duration: 0.7, delay: 0.6 }}
               className="mt-6 max-w-xl text-[16.5px] leading-relaxed text-slate-400"
             >
-              Every strategy provider on AlphaSync is verified, independently audited and
+              Every strategy provider on PrimeStone is verified, independently audited and
               ranked on results you can inspect trade by trade. Allocate once and their
               positions mirror into your account in real time — with your risk limits, not
               theirs.

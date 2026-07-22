@@ -451,10 +451,10 @@ function DepositPanel() {
           </p>
           <dl className="mt-2 space-y-1.5">
             {[
-              ["Beneficiary", "AlphaSync Markets Ltd"],
-              ["IBAN", "GB29 ALPH 6016 1331 9268 19"],
-              ["SWIFT / BIC", "ALPHGB2LXXX"],
-              ["Reference", `AS-${user?.email.slice(0, 6).toUpperCase() ?? "ACCOUNT"}`],
+              ["Beneficiary", "PrimeStone Markets Ltd"],
+              ["IBAN", "GB29 PRIM 6016 1331 9268 19"],
+              ["SWIFT / BIC", "PRIMGB2LXXX"],
+              ["Reference", `PS-${user?.email.slice(0, 6).toUpperCase() ?? "ACCOUNT"}`],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-3">
                 <dt className="text-slate-500">{k}</dt>

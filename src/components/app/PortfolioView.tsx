@@ -124,7 +124,7 @@ export function PortfolioView() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "alphasync-statement.csv";
+    a.download = "primestone-statement.csv";
     a.click();
     URL.revokeObjectURL(url);
   };

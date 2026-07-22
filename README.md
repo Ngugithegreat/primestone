@@ -1,4 +1,4 @@
-# AlphaSync
+# PrimeStone
 
 A copy-trading platform front end — landing site, onboarding, a live trading desk and the
 full authenticated app. Built with Next.js 16, React 19, TypeScript and Tailwind CSS v4.

@@ -52,7 +52,7 @@ export function LoginForm() {
       subtitle="Sign in to your desk to check your copies, positions and balance."
       footer={
         <>
-          New to AlphaSync?{" "}
+          New to PrimeStone?{" "}
           <Link href="/signup" className="font-medium text-mint-400 hover:text-mint-300">
             Open a free account
           </Link>
@@ -104,7 +104,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={() => {
-            signIn("demo@alphasync.com");
+            signIn("demo@primestone.co.ke");
             pushToast({
               tone: "info",
               title: "Demo session started",

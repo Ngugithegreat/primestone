@@ -22,7 +22,7 @@ export type Trader = {
   followers: number;
   /** Performance fee taken from profit, percent. */
   fee: number;
-  /** Months live on AlphaSync. */
+  /** Months live on PrimeStone. */
   monthsActive: number;
   aum: number;
   trades: number;

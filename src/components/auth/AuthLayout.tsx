@@ -85,7 +85,7 @@ export function AuthLayout({
         <div className="relative flex h-full flex-col justify-between p-10">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-mint-300">
-              Why AlphaSync
+              Why PrimeStone
             </span>
             <h2 className="mt-7 font-display text-[30px] font-bold leading-[1.15] text-white">
               You do not need to be a great trader.
