@@ -11,43 +11,6 @@ import { initialsOf } from "@/lib/utils";
 import { TickerTape } from "./TickerTape";
 
 /* -------------------------------------------------------------------------- */
-/*  Ambient background                                                         */
-/* -------------------------------------------------------------------------- */
-
-function Aurora() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-0 grid-lines opacity-70" />
-      <div
-        className="absolute -left-[14%] -top-[22%] h-[62vw] w-[62vw] animate-aurora rounded-full blur-[110px]"
-        style={{
-          background:
-            "radial-gradient(closest-side, rgba(0,223,164,0.34), rgba(0,223,164,0) 72%)",
-        }}
-      />
-      <div
-        className="absolute -right-[16%] top-[4%] h-[54vw] w-[54vw] animate-aurora rounded-full blur-[120px]"
-        style={{
-          animationDelay: "-6s",
-          background:
-            "radial-gradient(closest-side, rgba(99,102,241,0.30), rgba(99,102,241,0) 72%)",
-        }}
-      />
-      <div
-        className="absolute bottom-[-26%] left-[26%] h-[48vw] w-[48vw] animate-aurora rounded-full blur-[130px]"
-        style={{
-          animationDelay: "-12s",
-          background:
-            "radial-gradient(closest-side, rgba(34,211,238,0.20), rgba(34,211,238,0) 72%)",
-        }}
-      />
-      {/* Vignette keeps the type legible over the brightest part of the glow. */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,transparent_25%,rgba(4,6,10,0.86)_78%)]" />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Hero visual — a live-feeling account panel                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -266,7 +229,6 @@ const HEADLINE_WORDS = ["Copy", "the", "traders", "who", "actually", "win."];
 export function Hero() {
   return (
     <section className="relative overflow-hidden pt-17">
-      <Aurora />
 
       <div className="relative mx-auto max-w-7xl px-5 pb-24 pt-16 sm:px-8 lg:pb-32 lg:pt-24">
         <div className="grid items-center gap-10 sm:gap-16 lg:grid-cols-[1.06fr_1fr] lg:gap-14">

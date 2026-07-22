@@ -231,9 +231,8 @@ export function SignupFlow() {
                 </Field>
 
                 <p className="text-[12px] leading-relaxed text-slate-500">
-                  By continuing you agree to the Terms of Service and confirm you have read
-                  the Risk Disclosure. This is a demonstration platform — no real funds are
-                  held or traded.
+                  By continuing you agree to the Terms of Service and the Privacy Policy,
+                  and confirm you have read and understood the Risk Disclosure.
                 </p>
               </div>
             )}

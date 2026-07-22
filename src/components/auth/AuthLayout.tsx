@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Quote, ShieldCheck, TrendingUp, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/ui/Logo";
+import { SiteBackground } from "@/components/landing/SiteBackground";
 import { Avatar } from "@/components/ui/Primitives";
 import { TRADERS } from "@/lib/traders";
 import { initialsOf } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function AuthLayout({
 }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1fr_auto]">
+      <SiteBackground />
       {/* ---- Form side ---------------------------------------------------- */}
       <div className="relative flex flex-col px-5 py-7 sm:px-10">
         <div

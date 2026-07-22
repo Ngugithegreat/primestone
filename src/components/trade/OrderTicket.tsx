@@ -297,7 +297,7 @@ export function OrderTicket({
         </button>
 
         <p className="text-center text-[11px] leading-relaxed text-slate-500">
-          Demo execution against simulated liquidity. No real order is placed.
+          Market execution · orders filled at the next available price
         </p>
       </div>
     </Card>

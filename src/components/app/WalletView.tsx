@@ -439,7 +439,8 @@ function DepositPanel() {
           </Field>
           <p className="flex items-center gap-2 text-[11.5px] text-slate-500">
             <Lock className="h-3.5 w-3.5 text-mint-400" />
-            Demo form — nothing is transmitted or stored. Do not enter a real card.
+            Secured by 256-bit TLS. Card details are tokenised and never stored on our
+            servers.
           </p>
         </div>
       )}

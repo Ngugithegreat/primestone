@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Logo, LogoMark } from "@/components/ui/Logo";
+import { SiteBackground } from "@/components/landing/SiteBackground";
 import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
@@ -56,15 +57,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-ink-950">
-      {/* Ambient */}
-      <div
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 45% at 20% -5%, rgba(0,223,164,0.09), transparent 60%), radial-gradient(ellipse 60% 45% at 90% 0%, rgba(99,102,241,0.08), transparent 60%)",
-        }}
-        aria-hidden="true"
-      />
+      {/* Ambient — drifting orbs only. Particles and the sweep are too busy
+          behind live tables and charts. */}
+      <SiteBackground variant="subtle" />
 
       <Sidebar className="fixed inset-y-0 left-0 z-40 hidden w-[248px] lg:flex" />
 

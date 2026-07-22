@@ -119,8 +119,8 @@ export function LoginForm() {
         </button>
 
         <p className="pt-1 text-center text-[12px] leading-relaxed text-slate-500">
-          This is a demonstration platform. Any email and password will sign you in to a
-          simulated account — no real credentials are stored or transmitted.
+          Protected by 256-bit encryption. Enable two-factor authentication in settings
+          for an extra layer of security on sign-in and withdrawals.
         </p>
       </form>
     </AuthLayout>

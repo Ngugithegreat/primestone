@@ -1,4 +1,5 @@
 import { Hero } from "@/components/landing/Hero";
+import { SiteBackground } from "@/components/landing/SiteBackground";
 import { SiteNav } from "@/components/landing/SiteNav";
 import {
   AccountTypesSection,
@@ -17,6 +18,7 @@ import {
 export default function HomePage() {
   return (
     <>
+      <SiteBackground />
       <SiteNav />
       <main>
         <Hero />

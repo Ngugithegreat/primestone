@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/Button";
 import { LogoMark } from "@/components/ui/Logo";
+import { SiteBackground } from "@/components/landing/SiteBackground";
 
 export default function NotFound() {
   return (
     <main className="relative grid min-h-dvh place-items-center overflow-hidden px-5">
+      <SiteBackground />
       <div
         className="pointer-events-none absolute inset-0"
         style={{

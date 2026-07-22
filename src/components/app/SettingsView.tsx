@@ -388,9 +388,9 @@ export function SettingsView() {
         }
       >
         <p className="text-[14px] leading-relaxed text-slate-400">
-          This restores your {acct.name} account to {money(acct.demoCredit)} of demo credit
-          and regenerates the sample positions and history. Nothing here affects real money —
-          PrimeStone is a demonstration platform.
+          This restores your {acct.name} demo account to {money(acct.demoCredit)} of practice
+          credit and clears its positions and history. Your live account, its balance and any
+          active copies are not affected.
         </p>
       </Modal>
 

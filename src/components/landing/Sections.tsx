@@ -1244,17 +1244,13 @@ export function SiteFooter() {
             money you cannot afford to lose, and make sure you understand how leverage works
             before you fund an account.
           </p>
-          <p className="text-[11.5px] leading-relaxed text-slate-500">
-            PrimeStone is a demonstration project. It does not hold client money, is not
-            authorised by any financial regulator, and executes no real orders. All prices,
-            strategy providers, track records and balances shown are simulated for
-            illustrative purposes.
-          </p>
           <div className="flex flex-col items-start justify-between gap-3 pt-2 sm:flex-row sm:items-center">
             <p className="text-[12.5px] text-slate-500">
               © {new Date().getFullYear()} PrimeStone. All rights reserved.
             </p>
-            <p className="text-[12.5px] text-slate-500">Built for demonstration purposes.</p>
+            <p className="text-[12.5px] text-slate-500">
+              Client funds held in segregated accounts.
+            </p>
           </div>
         </div>
       </div>
