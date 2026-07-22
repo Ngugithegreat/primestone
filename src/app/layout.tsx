@@ -24,7 +24,22 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const SITE = "https://primestone.vercel.app";
+/**
+ * Canonical origin for Open Graph tags and canonical links.
+ *
+ * Vercel injects the project's production domain at build time, so this stays
+ * correct through project renames and custom domains without anyone editing it.
+ * Set NEXT_PUBLIC_SITE_URL (host only, no protocol) to override — that is what
+ * you want once a real domain is pointed at the project.
+ */
+const SITE_HOST =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+  "localhost:3000";
+
+const SITE = SITE_HOST.startsWith("localhost")
+  ? `http://${SITE_HOST}`
+  : `https://${SITE_HOST}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
