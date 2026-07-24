@@ -699,7 +699,7 @@ function ShowcaseFrame({ variant }: { variant: string }) {
         <span className="h-2.5 w-2.5 rounded-full bg-amber-450/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-mint-500/70" />
         <div className="ml-3 flex-1 rounded-md border border-white/[0.06] bg-ink-950/60 px-3 py-1 text-[11px] text-slate-500">
-          app.primestone.co.ke/{variant === "chart" ? "trade" : variant}
+          app.primestone.com/{variant === "chart" ? "trade" : variant}
         </div>
       </div>
 

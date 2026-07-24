@@ -104,7 +104,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={() => {
-            signIn("demo@primestone.co.ke");
+            signIn("demo@primestone.com");
             pushToast({
               tone: "info",
               title: "Demo session started",
