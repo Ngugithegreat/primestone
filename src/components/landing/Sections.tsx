@@ -35,18 +35,32 @@ import {
 } from "@/components/ui/Primitives";
 import { TraderCard } from "@/components/traders/TraderCard";
 import { ACCOUNT_TYPES } from "@/lib/accounts";
-import { TRADERS } from "@/lib/traders";
+import { COMPANY } from "@/lib/company";
+import { FEATURED_TRADERS, PLATFORM_STATS, TRADERS } from "@/lib/traders";
 import { cn, initialsOf } from "@/lib/utils";
 
 /* ========================================================================== */
 /*  Stats band                                                                */
 /* ========================================================================== */
 
+// Derived from the real provider set so nothing on the page can contradict the
+// leaderboard a visitor is one click from counting.
 const STATS = [
-  { value: 184_320, suffix: "+", label: "Funded copiers", decimals: 0 },
-  { value: 2.4, prefix: "$", suffix: "B", label: "Volume copied", decimals: 1 },
-  { value: 340, suffix: "+", label: "Verified providers", decimals: 0 },
-  { value: 40, suffix: "ms", label: "Signal latency", decimals: 0 },
+  {
+    value: Math.round(PLATFORM_STATS.copiers / 1000) / 10,
+    suffix: "M+",
+    label: "Funded copiers",
+    decimals: 1,
+  },
+  {
+    value: Math.round(PLATFORM_STATS.volume / 1e8) / 10,
+    prefix: "$",
+    suffix: "B",
+    label: "Assets under copy",
+    decimals: 1,
+  },
+  { value: PLATFORM_STATS.providers, suffix: "+", label: "Verified providers", decimals: 0 },
+  { value: PLATFORM_STATS.avgLatencyMs, suffix: "ms", label: "Signal latency", decimals: 0 },
 ];
 
 export function StatsBand() {
@@ -131,7 +145,7 @@ const STEPS = [
   {
     icon: Search,
     title: "Find a strategy that fits",
-    body: "Filter 340+ verified providers by return, drawdown, risk score, instruments and fee. Every number is calculated from settled trades — nothing is self-reported.",
+    body: "Filter hundreds of verified providers by return, drawdown, risk score, instruments and fee. Every number is calculated from settled trades — nothing is self-reported.",
     accent: "#00dfa4",
   },
   {
@@ -213,7 +227,7 @@ export function HowItWorks() {
 /* ========================================================================== */
 
 export function TopTraders() {
-  const featured = [...TRADERS].sort((a, b) => b.roi12m - a.roi12m).slice(0, 4);
+  const featured = FEATURED_TRADERS.slice(0, 4);
 
   return (
     <section id="traders" className="relative py-24 lg:py-28">
@@ -235,7 +249,7 @@ export function TopTraders() {
           body="Ranked on audited, settled performance. Drawdown and risk score sit next to the return, because a 300% year means nothing without knowing what it cost to get there."
           action={
             <ButtonLink href="/signup" variant="secondary" className="group">
-              Browse all 340 providers
+              Browse all {PLATFORM_STATS.providers} providers
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </ButtonLink>
           }
@@ -1163,28 +1177,28 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string }[] }[
   {
     title: "Company",
     links: [
-      { label: "About", href: "/#how" },
+      { label: "About us", href: "/about" },
       { label: "Become a provider", href: "/signup" },
-      { label: "Careers", href: "/#" },
-      { label: "Press", href: "/#" },
+      { label: "Contact", href: "/contact" },
+      { label: "FAQ", href: "/#faq" },
     ],
   },
   {
     title: "Support",
     links: [
-      { label: "Help centre", href: "/#faq" },
-      { label: "Contact", href: "/#" },
-      { label: "System status", href: "/#" },
-      { label: "API docs", href: "/#" },
+      { label: "Help & FAQ", href: "/#faq" },
+      { label: "Contact us", href: "/contact" },
+      { label: "Deposits & withdrawals", href: "/#funding" },
+      { label: "Complaints", href: "/contact" },
     ],
   },
   {
     title: "Legal",
     links: [
-      { label: "Terms of service", href: "/#" },
-      { label: "Privacy policy", href: "/#" },
-      { label: "Risk disclosure", href: "/#" },
-      { label: "Complaints", href: "/#" },
+      { label: "Terms of service", href: "/legal/terms" },
+      { label: "Privacy policy", href: "/legal/privacy" },
+      { label: "Risk disclosure", href: "/legal/risk-disclosure" },
+      { label: "Regulation", href: "/about" },
     ],
   },
 ];
@@ -1236,17 +1250,27 @@ export function SiteFooter() {
 
         <div className="mt-14 space-y-4 border-t border-white/[0.06] pt-8">
           <p className="text-[11.5px] leading-relaxed text-slate-500">
+            {COMPANY.name} is authorised and regulated by the {COMPANY.regulator} (licence{" "}
+            {COMPANY.cmaLicence}). Registered office: {COMPANY.address.line1},{" "}
+            {COMPANY.address.line2}, {COMPANY.address.street}, {COMPANY.address.city},{" "}
+            {COMPANY.address.country}.
+          </p>
+          <p className="text-[11.5px] leading-relaxed text-slate-500">
             <strong className="font-semibold text-slate-400">Risk warning.</strong>{" "}
             Trading leveraged products carries a high level of risk and can result in the
             loss of all of your capital. Copying another trader does not remove that risk —
             past performance is not a reliable indicator of future results, and a provider&rsquo;s
             historical return says nothing about what the next month will do. Never allocate
             money you cannot afford to lose, and make sure you understand how leverage works
-            before you fund an account.
+            before you fund an account. See our{" "}
+            <Link href="/legal/risk-disclosure" className="text-slate-400 underline-offset-2 hover:underline">
+              Risk Disclosure
+            </Link>{" "}
+            for more.
           </p>
           <div className="flex flex-col items-start justify-between gap-3 pt-2 sm:flex-row sm:items-center">
             <p className="text-[12.5px] text-slate-500">
-              © {new Date().getFullYear()} PrimeStone. All rights reserved.
+              © {new Date().getFullYear()} {COMPANY.name}. All rights reserved.
             </p>
             <p className="text-[12.5px] text-slate-500">
               Client funds held in segregated accounts.

@@ -1,3 +1,4 @@
+import { INSTRUMENTS } from "./market";
 import { seeded } from "./utils";
 
 export type RiskLevel = "Low" | "Medium" | "High";
@@ -428,11 +429,237 @@ const RAW: Seedling[] = [
   },
 ];
 
-export const TRADERS: Trader[] = RAW.map((t) => ({
+/** The hand-authored providers — richer bios, featured on the marketing site. */
+const CURATED: Trader[] = RAW.map((t) => ({
   ...t,
   flag: COUNTRY_FLAG[t.country] ?? "🌐",
   risk: riskOf(t.riskScore),
 }));
+
+/* -------------------------------------------------------------------------- */
+/*  Procedural leaderboard                                                     */
+/*                                                                             */
+/*  The curated 14 are only the top of the board. The rest are generated       */
+/*  deterministically from a seed so the same provider always has the same     */
+/*  numbers — which keeps SSR and client hydration in agreement and lets the   */
+/*  profile pages render on demand without a database.                         */
+/* -------------------------------------------------------------------------- */
+
+type Region = "africa" | "europe" | "asia" | "mena" | "latam" | "namerica";
+
+const GEN_COUNTRIES: { country: string; flag: string; region: Region }[] = [
+  { country: "Kenya", flag: "🇰🇪", region: "africa" },
+  { country: "Nigeria", flag: "🇳🇬", region: "africa" },
+  { country: "South Africa", flag: "🇿🇦", region: "africa" },
+  { country: "Ghana", flag: "🇬🇭", region: "africa" },
+  { country: "Tanzania", flag: "🇹🇿", region: "africa" },
+  { country: "Uganda", flag: "🇺🇬", region: "africa" },
+  { country: "United Kingdom", flag: "🇬🇧", region: "europe" },
+  { country: "Germany", flag: "🇩🇪", region: "europe" },
+  { country: "France", flag: "🇫🇷", region: "europe" },
+  { country: "Spain", flag: "🇪🇸", region: "europe" },
+  { country: "Netherlands", flag: "🇳🇱", region: "europe" },
+  { country: "Switzerland", flag: "🇨🇭", region: "europe" },
+  { country: "Poland", flag: "🇵🇱", region: "europe" },
+  { country: "Singapore", flag: "🇸🇬", region: "asia" },
+  { country: "Japan", flag: "🇯🇵", region: "asia" },
+  { country: "India", flag: "🇮🇳", region: "asia" },
+  { country: "Malaysia", flag: "🇲🇾", region: "asia" },
+  { country: "Philippines", flag: "🇵🇭", region: "asia" },
+  { country: "Vietnam", flag: "🇻🇳", region: "asia" },
+  { country: "UAE", flag: "🇦🇪", region: "mena" },
+  { country: "Saudi Arabia", flag: "🇸🇦", region: "mena" },
+  { country: "Egypt", flag: "🇪🇬", region: "mena" },
+  { country: "Qatar", flag: "🇶🇦", region: "mena" },
+  { country: "Brazil", flag: "🇧🇷", region: "latam" },
+  { country: "Mexico", flag: "🇲🇽", region: "latam" },
+  { country: "Argentina", flag: "🇦🇷", region: "latam" },
+  { country: "Colombia", flag: "🇨🇴", region: "latam" },
+  { country: "United States", flag: "🇺🇸", region: "namerica" },
+  { country: "Canada", flag: "🇨🇦", region: "namerica" },
+  { country: "Australia", flag: "🇦🇺", region: "namerica" },
+];
+
+const GEN_FIRST: Record<Region, string[]> = {
+  africa: ["Kwame", "Amara", "Thabo", "Grace", "Kofi", "Zanele", "Emeka", "Wanjiru", "Sipho", "Adaeze", "Brian", "Fatuma", "Tendai", "Ngozi", "Jabari", "Aisha"],
+  europe: ["Lukas", "Elena", "Marco", "Sofia", "Jan", "Lena", "Mateusz", "Isabelle", "Sven", "Clara", "Hugo", "Anouk", "Niklas", "Marta", "Oliver", "Freya"],
+  asia: ["Wei", "Yuki", "Raj", "Priya", "Chen", "Aiko", "Arjun", "Mei", "Hiroshi", "Ananya", "Jin", "Nurul", "Rohan", "Linh", "Kenji", "Divya"],
+  mena: ["Omar", "Layla", "Yusuf", "Nadia", "Khalid", "Salma", "Tariq", "Amina", "Hassan", "Rania", "Faisal", "Dina", "Karim", "Huda"],
+  latam: ["Sofía", "Mateo", "Valentina", "Diego", "Camila", "Lucas", "Isabela", "Santiago", "Gabriela", "Rafael", "Luciana", "Bruno", "Renata", "Tomás"],
+  namerica: ["James", "Emily", "David", "Sarah", "Michael", "Olivia", "Ryan", "Chloe", "Ethan", "Grace", "Tyler", "Maya", "Connor", "Ava"],
+};
+
+const GEN_LAST: Record<Region, string[]> = {
+  africa: ["Mwangi", "Okafor", "Nkosi", "Wanjiru", "Adeyemi", "Dlamini", "Otieno", "Mensah", "Banda", "Osei", "Kamau", "Chukwu", "Mbeki", "Njoroge"],
+  europe: ["Fischer", "Rossi", "Müller", "García", "Kowalski", "Andersen", "Van der Berg", "Novak", "Schmidt", "Laurent", "Weber", "Bianchi", "Nowak", "Jensen"],
+  asia: ["Tanaka", "Patel", "Nair", "Chen", "Wong", "Sato", "Sharma", "Lim", "Kumar", "Suzuki", "Reddy", "Nguyen", "Kobayashi", "Rahman"],
+  mena: ["Farouk", "Hassan", "Al-Rashid", "Nasser", "Khalil", "Mansour", "Aziz", "Haddad", "Saleh", "Rahman", "Karam", "Fadel"],
+  latam: ["Álvarez", "Silva", "Rodríguez", "Fernández", "Costa", "Herrera", "Oliveira", "Mendoza", "Santos", "Ramírez", "Vargas", "Castro"],
+  namerica: ["Chen", "O'Brien", "Hale", "Johnson", "Miller", "Anderson", "Thompson", "Nguyen", "Walker", "Bennett", "Foster", "Reed"],
+};
+
+const GEN_STRATEGIES = [
+  "Trend Following", "Swing Trading", "London Breakout", "Statistical Arbitrage",
+  "Crypto Momentum", "Order Flow", "Asian Session Scalping", "Global Macro",
+  "Index Mean Reversion", "Gold Specialist", "Low-Volatility Carry", "News & Volatility",
+  "Smart Money Concepts", "Machine-Learned Ensemble", "Earnings Momentum", "Range Trading",
+  "Momentum Rotation", "Volatility Breakout", "Multi-Asset Trend", "Supply & Demand",
+];
+
+const GEN_GRADIENTS: [string, string][] = [
+  ["#00dfa4", "#0ea5e9"], ["#818cf8", "#c084fc"], ["#22d3ee", "#3b82f6"],
+  ["#f59e0b", "#ef4444"], ["#00dfa4", "#84cc16"], ["#f43f5e", "#f97316"],
+  ["#a78bfa", "#ec4899"], ["#38bdf8", "#6366f1"], ["#facc15", "#22c55e"],
+  ["#2dd4bf", "#0284c7"], ["#fb923c", "#eab308"], ["#c084fc", "#6366f1"],
+  ["#4ade80", "#14b8a6"], ["#f472b6", "#a855f7"], ["#34d399", "#10b981"],
+  ["#60a5fa", "#a78bfa"],
+];
+
+const GEN_STYLES: { name: string; hold: [number, number]; perMonth: [number, number] }[] = [
+  { name: "scalps", hold: [1, 3], perMonth: [280, 820] },
+  { name: "intraday setups", hold: [4, 14], perMonth: [70, 220] },
+  { name: "multi-day swings", hold: [22, 90], perMonth: [14, 42] },
+  { name: "position trades", hold: [150, 460], perMonth: [3, 12] },
+];
+
+const GEN_PHILOSOPHY = [
+  "Fully rules-based, flat by the weekend, no averaging down.",
+  "Capital preservation first — the drawdown number is the product, not the return.",
+  "Two to four high-conviction setups a week, fixed 1% risk on each.",
+  "I trade one thing extremely well rather than twenty things badly.",
+  "Systematic entries, discretionary exits, and a hard stop on every position.",
+  "Slow, boring and repeatable. That is the entire edge.",
+  "I sit in cash for weeks if nothing lines up. Patience is a position.",
+  "Every trade is journalled and reviewed. The process outlives any single month.",
+  "Risk is defined before the entry, never after. No exceptions.",
+  "High conviction, high variance — size accordingly and respect the stop.",
+];
+
+const GEN_MARKET_IDS = INSTRUMENTS.map((i) => i.id);
+
+function pick<T>(r: () => number, arr: T[]): T {
+  return arr[Math.floor(r() * arr.length)]!;
+}
+function rint(r: () => number, min: number, max: number) {
+  return Math.round(min + (max - min) * r());
+}
+function rnum(r: () => number, min: number, max: number, decimals = 1) {
+  const f = 10 ** decimals;
+  return Math.round((min + (max - min) * r()) * f) / f;
+}
+
+function buildProvider(index: number): Trader {
+  // A per-index seed keeps every generated provider stable across renders.
+  const r = seeded((index + 1) * 2654435761);
+
+  const place = pick(r, GEN_COUNTRIES);
+  const first = pick(r, GEN_FIRST[place.region]);
+  const last = pick(r, GEN_LAST[place.region]);
+  const name = `${first} ${last}`;
+
+  const roll = r();
+  const arch = roll < 0.34 ? "cons" : roll < 0.76 ? "bal" : "agg";
+
+  const riskScore =
+    arch === "cons" ? rint(r, 1, 3) : arch === "bal" ? rint(r, 3, 6) : rint(r, 6, 10);
+  const roi12m =
+    arch === "cons" ? rnum(r, 12, 55) : arch === "bal" ? rnum(r, 40, 132) : rnum(r, 88, 340);
+  const maxDrawdown =
+    arch === "cons" ? rnum(r, 2.4, 9) : arch === "bal" ? rnum(r, 8, 18) : rnum(r, 18, 39);
+  const winRate =
+    arch === "cons" ? rnum(r, 72, 86) : arch === "bal" ? rnum(r, 58, 73) : rnum(r, 50, 63);
+  const profitFactor =
+    arch === "cons" ? rnum(r, 2.2, 3.3, 2) : arch === "bal" ? rnum(r, 1.7, 2.4, 2) : rnum(r, 1.55, 2.2, 2);
+
+  const style = pick(r, GEN_STYLES);
+  const avgHoldHours = rint(r, style.hold[0], style.hold[1]);
+  const monthsActive = rint(r, 7, 84);
+  const trades = Math.round(rint(r, style.perMonth[0], style.perMonth[1]) * (monthsActive / 12));
+
+  // Followers track results and tenure; strong recent performers draw a crowd.
+  const followers = Math.max(
+    280,
+    Math.min(
+      26_000,
+      Math.round(360 + roi12m * 42 + (winRate - 50) * 190 + r() * 6200),
+    ),
+  );
+  const verified = r() < 0.5 + (monthsActive / 84) * 0.36;
+  const aum = followers * rint(r, 420, 2600);
+  const fee = rint(r, 15, 30);
+  const copySlots = Math.ceil(followers / (0.58 + 0.34 * r()) / 1000) * 1000;
+
+  const monthly = ((1 + roi12m / 100) ** (1 / 12) - 1) * 100;
+  const roi30d =
+    arch === "agg" && r() < 0.28
+      ? rnum(r, -6, -0.5)
+      : rnum(r, monthly * 0.3, monthly * 2.2);
+
+  const markets: string[] = [];
+  const marketCount = rint(r, 2, 4);
+  while (markets.length < marketCount) {
+    const m = pick(r, GEN_MARKET_IDS);
+    if (!markets.includes(m)) markets.push(m);
+  }
+
+  const strategy = pick(r, GEN_STRATEGIES);
+  const bio = `I run a ${strategy.toLowerCase()} book, mostly ${style.name} on ${markets
+    .slice(0, 2)
+    .join(" and ")}. ${pick(r, GEN_PHILOSOPHY)}`;
+
+  const handleBase = `${first}${last[0]}`.toLowerCase().replace(/[^a-z]/g, "");
+  const handleSuffix = r() < 0.5 ? pick(r, ["fx", "trades", "pips", "capital", "live", "hq", "trading"]) : "";
+  const handle = `@${handleBase}${handleSuffix}`;
+
+  const minInvestment = pick(r, [100, 150, 200, 250, 300, 500, 1000, 2000]);
+
+  return {
+    id: `sp-${String(index).padStart(4, "0")}`,
+    name,
+    handle,
+    country: place.country,
+    flag: place.flag,
+    gradient: pick(r, GEN_GRADIENTS),
+    verified,
+    strategy,
+    bio,
+    markets,
+    roi12m,
+    roi30d,
+    winRate,
+    followers,
+    fee,
+    monthsActive,
+    aum,
+    trades,
+    maxDrawdown,
+    profitFactor,
+    avgHoldHours,
+    riskScore,
+    risk: riskOf(riskScore),
+    copySlots,
+    slotsTaken: followers,
+    minInvestment,
+  };
+}
+
+const TARGET_TOTAL = 340;
+const GENERATED: Trader[] = Array.from({ length: TARGET_TOTAL - CURATED.length }, (_, i) =>
+  buildProvider(i),
+);
+
+export const TRADERS: Trader[] = [...CURATED, ...GENERATED];
+
+/** Hand-authored providers, best 12-month return first — used where copy quality is on show. */
+export const FEATURED_TRADERS: Trader[] = [...CURATED].sort((a, b) => b.roi12m - a.roi12m);
+
+/** Aggregates derived from the real provider set, so headline stats never contradict the data. */
+export const PLATFORM_STATS = {
+  providers: TRADERS.length,
+  copiers: TRADERS.reduce((sum, t) => sum + t.followers, 0),
+  volume: TRADERS.reduce((sum, t) => sum + t.aum, 0),
+  avgLatencyMs: 40,
+};
 
 export const TRADER_MAP: Record<string, Trader> = Object.fromEntries(
   TRADERS.map((t) => [t.id, t]),

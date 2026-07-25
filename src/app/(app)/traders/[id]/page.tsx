@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TraderProfile } from "@/components/traders/TraderProfile";
-import { TRADERS, getTrader } from "@/lib/traders";
+import { FEATURED_TRADERS, getTrader } from "@/lib/traders";
+
+// Pre-render the curated providers at build time; the hundreds of generated
+// ones render on first request and are then cached, so the build stays fast.
+export const dynamicParams = true;
 
 export function generateStaticParams() {
-  return TRADERS.map((t) => ({ id: t.id }));
+  return FEATURED_TRADERS.map((t) => ({ id: t.id }));
 }
 
 export async function generateMetadata({

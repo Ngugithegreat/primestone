@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CopyModal } from "./CopyModal";
 import { TraderCard } from "./TraderCard";
 import { Card } from "@/components/ui/Primitives";
@@ -61,6 +61,13 @@ export function TradersDirectory() {
   }, [query, sort, risk, market, verifiedOnly]);
 
   const filtersActive = risk !== "all" || market !== "all" || verifiedOnly || query !== "";
+
+  // The board is hundreds deep — render a page at a time and reset whenever the
+  // filtered set changes, so we never mount 340 animated cards at once.
+  const PAGE = 24;
+  const [visible, setVisible] = useState(PAGE);
+  useEffect(() => setVisible(PAGE), [query, sort, risk, market, verifiedOnly]);
+  const shown = results.slice(0, visible);
 
   return (
     <div className="space-y-5">
@@ -180,18 +187,34 @@ export function TradersDirectory() {
           </p>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {results.map((t, i) => (
-            <TraderCard
-              key={t.id}
-              trader={t}
-              href={`/traders/${t.id}`}
-              index={i}
-              onCopy={setTarget}
-              copying={copiedIds.has(t.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {shown.map((t, i) => (
+              <TraderCard
+                key={t.id}
+                trader={t}
+                href={`/traders/${t.id}`}
+                index={i % PAGE}
+                onCopy={setTarget}
+                copying={copiedIds.has(t.id)}
+              />
+            ))}
+          </div>
+
+          {visible < results.length && (
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <p className="text-[13px] text-slate-500">
+                Showing {shown.length} of {results.length} providers
+              </p>
+              <button
+                onClick={() => setVisible((v) => v + PAGE)}
+                className="focus-ring rounded-xl border border-white/10 bg-white/[0.04] px-6 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:bg-white/[0.09]"
+              >
+                Load more providers
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <CopyModal trader={target} open={target !== null} onClose={() => setTarget(null)} />

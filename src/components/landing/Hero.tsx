@@ -6,7 +6,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Avatar, AnimatedNumber, LiveDot } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { formatPrice, getInstrument } from "@/lib/market";
-import { TRADERS } from "@/lib/traders";
+import { PLATFORM_STATS, TRADERS } from "@/lib/traders";
 import { initialsOf } from "@/lib/utils";
 import { TickerTape } from "./TickerTape";
 
@@ -313,7 +313,10 @@ export function Hero() {
                   ))}
                 </div>
                 <p className="text-[13px] text-slate-400">
-                  <span className="font-semibold text-white">184,000+</span> copiers
+                  <span className="font-semibold text-white">
+                    {(PLATFORM_STATS.copiers / 1_000_000).toFixed(1)}M+
+                  </span>{" "}
+                  copiers
                 </p>
               </div>
 
@@ -323,7 +326,7 @@ export function Hero() {
               </div>
               <div className="flex items-center gap-2 text-[13px] text-slate-400">
                 <TrendingUp className="h-4 w-4 text-mint-400" />
-                $2.4B copied volume
+                ${(PLATFORM_STATS.volume / 1e9).toFixed(1)}B under copy
               </div>
             </motion.div>
           </div>

@@ -231,8 +231,19 @@ export function SignupFlow() {
                 </Field>
 
                 <p className="text-[12px] leading-relaxed text-slate-500">
-                  By continuing you agree to the Terms of Service and the Privacy Policy,
-                  and confirm you have read and understood the Risk Disclosure.
+                  By continuing you agree to the{" "}
+                  <Link href="/legal/terms" className="text-mint-400 hover:text-mint-300">
+                    Terms of Service
+                  </Link>{" "}
+                  and the{" "}
+                  <Link href="/legal/privacy" className="text-mint-400 hover:text-mint-300">
+                    Privacy Policy
+                  </Link>
+                  , and confirm you have read and understood the{" "}
+                  <Link href="/legal/risk-disclosure" className="text-mint-400 hover:text-mint-300">
+                    Risk Disclosure
+                  </Link>
+                  .
                 </p>
               </div>
             )}
