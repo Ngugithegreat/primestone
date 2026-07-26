@@ -17,8 +17,11 @@ import {
   Smartphone,
   Wallet as WalletIcon,
 } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { StatTile } from "./StatTile";
+import { STATUS_META, type KycStatus } from "@/lib/kyc";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { Badge, Card, CardHeader } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
@@ -196,7 +199,6 @@ export function WalletView() {
                   Anti-money-laundering rules mean funds go back to the method they came
                   from, up to the amount deposited with it. Anything above that is paid to
                   your verified bank account.
-                  {user?.kycVerified === false && " Verify your identity in settings to lift withdrawal limits."}
                 </p>
               </div>
             </div>
@@ -495,6 +497,7 @@ function WithdrawPanel({ balance }: { balance: number }) {
   const user = useStore((s) => s.user);
   const withdraw = useStore((s) => s.withdraw);
   const pushToast = useStore((s) => s.pushToast);
+  const kycStatus = useStore((s) => s.kyc.status);
 
   const [method, setMethod] = useState<MethodId>("mpesa");
   const [amount, setAmount] = useState(200);
@@ -543,6 +546,11 @@ function WithdrawPanel({ balance }: { balance: number }) {
         : method === "card"
           ? "Card ending in"
           : "Bank account / IBAN";
+
+  // Withdrawals are gated on identity verification.
+  if (kycStatus !== "verified") {
+    return <WithdrawKycGate status={kycStatus} />;
+  }
 
   return (
     <div className="space-y-5 p-4">
@@ -638,6 +646,66 @@ function WithdrawPanel({ balance }: { balance: number }) {
         Withdrawals are reviewed before release. Requests submitted before 14:00 GMT are
         processed the same working day.
       </p>
+    </div>
+  );
+}
+
+/** Shown in place of the withdraw form until the account is KYC-verified. */
+function WithdrawKycGate({ status }: { status: KycStatus }) {
+  const pending = status === "pending";
+  const rejected = status === "rejected";
+  const meta = STATUS_META[status];
+
+  return (
+    <div className="p-4">
+      <div
+        className={cn(
+          "rounded-2xl border p-6 text-center",
+          pending
+            ? "border-amber-450/25 bg-amber-450/[0.05]"
+            : rejected
+              ? "border-rose-500/25 bg-rose-500/[0.05]"
+              : "border-white/[0.08] bg-white/[0.02]",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto grid h-14 w-14 place-items-center rounded-2xl",
+            pending ? "bg-amber-450/12 text-amber-450" : rejected ? "bg-rose-500/12 text-rose-400" : "bg-mint-500/12 text-mint-400",
+          )}
+        >
+          {rejected ? <ShieldAlert className="h-7 w-7" /> : <ShieldCheck className="h-7 w-7" />}
+        </div>
+
+        <h3 className="mt-4 text-[17px] font-semibold text-white">
+          {pending
+            ? "Verification in progress"
+            : rejected
+              ? "Verification needs attention"
+              : "Verify your identity to withdraw"}
+        </h3>
+        <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-slate-400">
+          {pending
+            ? "Your documents are under review. Withdrawals unlock automatically once your identity is confirmed — usually within a few hours."
+            : rejected
+              ? "Your last submission could not be verified. Please review the notes and re-submit your documents."
+              : "For your security and to meet regulatory requirements, we verify every account before the first withdrawal. It takes about two minutes."}
+        </p>
+
+        <div className="mt-3">
+          <Badge tone={meta.tone}>{meta.label}</Badge>
+        </div>
+
+        {!pending && (
+          <Link
+            href="/verify"
+            className="focus-ring mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-mint-500 px-6 text-[14px] font-semibold text-ink-950 transition-colors hover:bg-mint-400"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {rejected ? "Re-submit documents" : "Start verification"}
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { type AccountTypeId, getAccountType } from "./accounts";
+import type { IdType, KycDocument, KycStatus } from "./kyc";
 import { getInstrument, pnlOf, round, type Side } from "./market";
 import { seeded, uid } from "./utils";
 import { TRADERS } from "./traders";
@@ -22,6 +23,30 @@ export type User = {
   leverage: number;
   createdAt: number;
   kycVerified: boolean;
+};
+
+export type KycSubmission = {
+  status: KycStatus;
+  idType: IdType;
+  idNumberMasked: string;
+  dateOfBirth: string;
+  residentialAddress: string;
+  documents: KycDocument[];
+  submittedAt: number | null;
+  reviewedAt: number | null;
+  rejectionReason: string | null;
+};
+
+const EMPTY_KYC: KycSubmission = {
+  status: "unverified",
+  idType: "National ID",
+  idNumberMasked: "",
+  dateOfBirth: "",
+  residentialAddress: "",
+  documents: [],
+  submittedAt: null,
+  reviewedAt: null,
+  rejectionReason: null,
 };
 
 export type Position = {
@@ -90,6 +115,7 @@ type State = {
   txns: Txn[];
   toasts: Toast[];
   watchlist: string[];
+  kyc: KycSubmission;
 };
 
 type Actions = {
@@ -119,6 +145,17 @@ type Actions = {
   deposit: (input: { method: Txn["method"]; amount: number; detail: string }) => Txn;
   withdraw: (input: { method: Txn["method"]; amount: number; detail: string }) => { ok: boolean; message: string; txn?: Txn };
   settleTxn: (id: string) => void;
+
+  submitKyc: (input: {
+    idType: IdType;
+    idNumberMasked: string;
+    dateOfBirth: string;
+    residentialAddress: string;
+    documents: KycDocument[];
+  }) => void;
+  /** Used by the admin console to approve or reject the live session's submission. */
+  reviewKyc: (status: Extract<KycStatus, "verified" | "rejected">, reason?: string) => void;
+  resetKyc: () => void;
 
   toggleWatch: (symbol: string) => void;
   pushToast: (t: Omit<Toast, "id">) => void;
@@ -290,6 +327,7 @@ const EMPTY: State = {
   txns: [],
   toasts: [],
   watchlist: ["EURUSD", "XAUUSD", "BTCUSD", "US100", "GBPUSD"],
+  kyc: EMPTY_KYC,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -313,6 +351,7 @@ export const useStore = create<Store>()(
           copies: seedCopies(now),
           txns: seedTxns(now, credit),
           toasts: [],
+          kyc: EMPTY_KYC,
         });
       },
 
@@ -340,6 +379,7 @@ export const useStore = create<Store>()(
           history: seedHistory(now, "standard", credit),
           copies: seedCopies(now),
           txns: seedTxns(now, credit),
+          kyc: EMPTY_KYC,
         });
       },
 
@@ -498,6 +538,13 @@ export const useStore = create<Store>()(
 
       withdraw: ({ method, amount, detail }) => {
         const state = get();
+        // Identity verification is a hard gate on the money leaving.
+        if (state.kyc.status !== "verified") {
+          return {
+            ok: false,
+            message: "Verify your identity before withdrawing.",
+          };
+        }
         const fee = method === "crypto" ? 2.5 : method === "bank" ? 15 : 0;
         const total = amount + fee;
         if (total > state.balance) {
@@ -528,6 +575,43 @@ export const useStore = create<Store>()(
             txn.kind === "deposit" ? round(state.balance + txn.amount, 2) : state.balance,
         });
       },
+
+      submitKyc: ({ idType, idNumberMasked, dateOfBirth, residentialAddress, documents }) => {
+        set({
+          kyc: {
+            status: "pending",
+            idType,
+            idNumberMasked,
+            dateOfBirth,
+            residentialAddress,
+            documents,
+            submittedAt: Date.now(),
+            reviewedAt: null,
+            rejectionReason: null,
+          },
+        });
+        get().pushToast({
+          tone: "success",
+          title: "Documents submitted",
+          body: "Your identity check is now under review. Withdrawals unlock once approved.",
+        });
+      },
+
+      reviewKyc: (status, reason) => {
+        const kyc = get().kyc;
+        if (kyc.status === "unverified") return;
+        set({
+          kyc: {
+            ...kyc,
+            status,
+            reviewedAt: Date.now(),
+            rejectionReason: status === "rejected" ? (reason ?? "Submission could not be verified.") : null,
+          },
+          user: get().user ? { ...get().user!, kycVerified: status === "verified" } : null,
+        });
+      },
+
+      resetKyc: () => set({ kyc: EMPTY_KYC }),
 
       toggleWatch: (symbol) => {
         const list = get().watchlist;
@@ -573,6 +657,7 @@ export const useStore = create<Store>()(
         copies: s.copies,
         txns: s.txns,
         watchlist: s.watchlist,
+        kyc: s.kyc,
       }),
     },
   ),

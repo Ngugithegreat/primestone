@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  ShieldCheck,
   Users,
   Wallet,
   X,
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/trade", label: "Trading desk", icon: CandlestickChart },
   { href: "/portfolio", label: "Portfolio", icon: BarChart3 },
   { href: "/wallet", label: "Wallet", icon: Wallet },
+  { href: "/verify", label: "Verify identity", icon: ShieldCheck },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -116,11 +118,20 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
   const user = useStore((s) => s.user);
   const copies = useStore((s) => s.copies);
   const positions = useStore((s) => s.positions);
+  const kycStatus = useStore((s) => s.kyc.status);
   const acct = getAccountType(user?.accountType);
 
   const counts: Record<string, number> = {
     "/traders": copies.filter((c) => c.status === "active").length,
     "/trade": positions.length,
+  };
+
+  // A coloured dot on "Verify identity" reflects KYC state at a glance.
+  const KYC_DOT: Record<string, string> = {
+    verified: "bg-mint-500",
+    pending: "bg-amber-450",
+    rejected: "bg-rose-500",
+    unverified: "bg-slate-500",
   };
 
   return (
@@ -173,6 +184,15 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
                 )}
               />
               <span className="flex-1">{item.label}</span>
+              {item.href === "/verify" && (
+                <span
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-full",
+                    KYC_DOT[kycStatus],
+                    kycStatus === "pending" && "animate-pulse",
+                  )}
+                />
+              )}
               {count ? (
                 <span className="tnum rounded-md bg-white/[0.08] px-1.5 py-0.5 text-[11px] text-slate-300">
                   {count}
@@ -337,6 +357,13 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
                   >
                     <Settings className="h-4 w-4" />
                     Account settings
+                  </Link>
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13.5px] text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Admin console
                   </Link>
                   <button
                     onClick={() => {
