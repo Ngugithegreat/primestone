@@ -7,7 +7,8 @@
  *
  * Override the owner credentials with SEED_OWNER_EMAIL / SEED_OWNER_PASSWORD.
  */
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: [".env.local", ".env"] });
 import { getDb } from "../src/db/client";
 import { register } from "../src/server/auth";
 import { createProvider, listProviders } from "../src/server/providers";
@@ -21,20 +22,25 @@ async function main() {
   }
   const db = getDb();
 
-  const email = (process.env.SEED_OWNER_EMAIL ?? "owner@primestone.com").toLowerCase();
-  const password = process.env.SEED_OWNER_PASSWORD ?? "change-me-now";
-
-  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing[0]) {
-    console.log(`Owner ${email} already exists.`);
-  } else {
-    const reg = await register(db, { email, password, firstName: "Platform", lastName: "Owner" });
-    if (!reg.ok) {
-      console.error("Failed to create owner:", reg.error);
-      process.exit(1);
+  // Owner creation is optional: only runs if you pass SEED_OWNER_PASSWORD.
+  // Otherwise register yourself through the app and promote your account later.
+  const password = process.env.SEED_OWNER_PASSWORD;
+  if (password) {
+    const email = (process.env.SEED_OWNER_EMAIL ?? "owner@primestone.com").toLowerCase();
+    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (existing[0]) {
+      console.log(`Owner ${email} already exists.`);
+    } else {
+      const reg = await register(db, { email, password, firstName: "Platform", lastName: "Owner" });
+      if (!reg.ok) {
+        console.error("Failed to create owner:", reg.error);
+        process.exit(1);
+      }
+      await db.update(users).set({ role: "owner" }).where(eq(users.id, reg.user.id));
+      console.log(`Owner created: ${email}.`);
     }
-    await db.update(users).set({ role: "owner" }).where(eq(users.id, reg.user.id));
-    console.log(`Owner created: ${email} (change the password immediately).`);
+  } else {
+    console.log("No SEED_OWNER_PASSWORD — skipping owner (register in-app and promote later).");
   }
 
   const providers = await listProviders(db);
