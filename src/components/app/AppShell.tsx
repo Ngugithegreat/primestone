@@ -23,6 +23,7 @@ import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
 import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
+import { apiLogout } from "@/lib/authClient";
 import { cn, initialsOf } from "@/lib/utils";
 
 const NAV = [
@@ -367,6 +368,8 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
                   </Link>
                   <button
                     onClick={() => {
+                      // Clear the server session (best-effort) then local state.
+                      void apiLogout();
                       signOut();
                       router.push("/");
                     }}

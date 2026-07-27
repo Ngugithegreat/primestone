@@ -11,6 +11,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Primitives";
 import { ACCOUNT_TYPES, LEVERAGE_OPTIONS, type AccountTypeId } from "@/lib/accounts";
 import { useStore } from "@/lib/store";
+import { apiRegister } from "@/lib/authClient";
 import { cn } from "@/lib/utils";
 
 const COUNTRIES = [
@@ -32,12 +33,13 @@ type Errors = Partial<Record<string, string>>;
 export function SignupFlow() {
   const router = useRouter();
   const params = useSearchParams();
-  const register = useStore((s) => s.register);
+  const signInReal = useStore((s) => s.signInReal);
   const pushToast = useStore((s) => s.pushToast);
 
   const presetAccount = params.get("account") as AccountTypeId | null;
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Errors>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -84,23 +86,46 @@ export function SignupFlow() {
     return Object.keys(e).length === 0;
   };
 
-  const next = () => {
+  const next = async () => {
     if (step === 0 && !validateDetails()) return;
+
     if (step === 2) {
-      // Leverage is capped by the account type, not by what the user picked.
-      register({
+      // Create the real account in the backend before advancing.
+      setSubmitting(true);
+      const leverage = Math.min(form.leverage, selectedAccount.maxLeverage);
+      const result = await apiRegister({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
         country: form.country,
         accountType: form.accountType,
-        leverage: Math.min(form.leverage, selectedAccount.maxLeverage),
+        leverage,
+      });
+      setSubmitting(false);
+
+      if (!result.ok) {
+        // Surface the server error on the details step (usually a taken email).
+        setStep(0);
+        setErrors({ email: result.error });
+        return;
+      }
+
+      signInReal({
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        email: result.user.email,
+        phone: result.user.phone,
+        country: result.user.country,
+        accountType: (result.user.accountType as AccountTypeId) ?? form.accountType,
+        leverage: result.user.leverage,
+        kycVerified: result.user.kycStatusCache === "verified",
       });
       pushToast({
         tone: "success",
         title: "Account created",
-        body: `$${selectedAccount.demoCredit.toLocaleString()} of demo credit is ready in your wallet.`,
+        body: "Your account is live. Verify your identity to enable withdrawals.",
       });
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -442,9 +467,13 @@ export function SignupFlow() {
                 Back
               </Button>
             )}
-            <Button onClick={next} className="flex-1">
-              {step === 2 ? "Create my account" : "Continue"}
-              <ArrowRight className="h-4 w-4" />
+            <Button onClick={next} className="flex-1" disabled={submitting}>
+              {submitting
+                ? "Creating your account…"
+                : step === 2
+                  ? "Create my account"
+                  : "Continue"}
+              {!submitting && <ArrowRight className="h-4 w-4" />}
             </Button>
           </div>
         )}

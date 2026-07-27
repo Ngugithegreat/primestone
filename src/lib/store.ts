@@ -116,11 +116,24 @@ type State = {
   toasts: Toast[];
   watchlist: string[];
   kyc: KycSubmission;
+  /** "real" = authenticated against the Postgres backend; "demo" = local only. */
+  sessionMode: "real" | "demo" | null;
 };
 
 type Actions = {
   register: (input: Omit<User, "createdAt" | "kycVerified">) => void;
   signIn: (email: string) => void;
+  /** Populate app state from a real, server-authenticated user. */
+  signInReal: (input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    country: string;
+    accountType: AccountTypeId;
+    leverage: number;
+    kycVerified: boolean;
+  }) => void;
   signOut: () => void;
   updateUser: (patch: Partial<User>) => void;
 
@@ -328,6 +341,7 @@ const EMPTY: State = {
   toasts: [],
   watchlist: ["EURUSD", "XAUUSD", "BTCUSD", "US100", "GBPUSD"],
   kyc: EMPTY_KYC,
+  sessionMode: null,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -352,6 +366,7 @@ export const useStore = create<Store>()(
           txns: seedTxns(now, credit),
           toasts: [],
           kyc: EMPTY_KYC,
+          sessionMode: "demo",
         });
       },
 
@@ -380,6 +395,33 @@ export const useStore = create<Store>()(
           copies: seedCopies(now),
           txns: seedTxns(now, credit),
           kyc: EMPTY_KYC,
+          sessionMode: "demo",
+        });
+      },
+
+      signInReal: (input) => {
+        const now = Date.now();
+        const existing = get();
+        // Preserve any app state already loaded for this session; only seed
+        // fresh demo trading state when there is none yet.
+        const needsSeed = !existing.user || existing.sessionMode !== "real";
+        const credit = getAccountType(input.accountType).demoCredit;
+        set({
+          user: { ...input, createdAt: now },
+          sessionMode: "real",
+          ...(needsSeed
+            ? {
+                balance: credit,
+                demoCredit: credit,
+                positions: seedPositions(now),
+                history: seedHistory(now, input.accountType, credit),
+                copies: seedCopies(now),
+                txns: seedTxns(now, credit),
+                kyc: input.kycVerified
+                  ? { ...EMPTY_KYC, status: "verified" as const }
+                  : EMPTY_KYC,
+              }
+            : {}),
         });
       },
 
@@ -658,6 +700,7 @@ export const useStore = create<Store>()(
         txns: s.txns,
         watchlist: s.watchlist,
         kyc: s.kyc,
+        sessionMode: s.sessionMode,
       }),
     },
   ),

@@ -8,12 +8,15 @@ import { AuthLayout } from "./AuthLayout";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { useHydrated, useStore } from "@/lib/store";
+import { apiLogin } from "@/lib/authClient";
+import type { AccountTypeId } from "@/lib/accounts";
 
 export function LoginForm() {
   const router = useRouter();
   const hydrated = useHydrated();
   const user = useStore((s) => s.user);
   const signIn = useStore((s) => s.signIn);
+  const signInReal = useStore((s) => s.signInReal);
   const pushToast = useStore((s) => s.pushToast);
 
   const [email, setEmail] = useState("");
@@ -26,7 +29,7 @@ export function LoginForm() {
     if (hydrated && user) router.replace("/dashboard");
   }, [hydrated, user, router]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
       setError("Enter a valid email address.");
@@ -39,11 +42,25 @@ export function LoginForm() {
 
     setBusy(true);
     setError(undefined);
-    window.setTimeout(() => {
-      signIn(email.trim().toLowerCase());
-      pushToast({ tone: "success", title: "Welcome back", body: "Your desk is ready." });
-      router.push("/dashboard");
-    }, 550);
+    const result = await apiLogin(email.trim().toLowerCase(), password);
+    if (!result.ok) {
+      setBusy(false);
+      setError(result.error);
+      return;
+    }
+
+    signInReal({
+      firstName: result.user.firstName,
+      lastName: result.user.lastName,
+      email: result.user.email,
+      phone: result.user.phone,
+      country: result.user.country,
+      accountType: (result.user.accountType as AccountTypeId) ?? "standard",
+      leverage: result.user.leverage,
+      kycVerified: result.user.kycStatusCache === "verified",
+    });
+    pushToast({ tone: "success", title: "Welcome back", body: "Your desk is ready." });
+    router.push("/dashboard");
   };
 
   return (
