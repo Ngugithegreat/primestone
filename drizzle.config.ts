@@ -1,4 +1,5 @@
 import type { Config } from "drizzle-kit";
+import { migrationDatabaseUrl } from "./src/db/url";
 
 /**
  * drizzle-kit config.
@@ -11,7 +12,7 @@ export default {
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://localhost:5432/placeholder",
+    url: migrationDatabaseUrl() ?? "postgres://localhost:5432/placeholder",
   },
   strict: true,
 } satisfies Config;

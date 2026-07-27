@@ -2,6 +2,7 @@ import "server-only";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { runtimeDatabaseUrl } from "./url";
 
 /**
  * Production database client.
@@ -23,12 +24,12 @@ let _client: postgres.Sql | null = null;
 export function getDb(): Database {
   if (_db) return _db;
 
-  const url = process.env.DATABASE_URL;
+  const url = runtimeDatabaseUrl();
   if (!url) {
     throw new Error(
-      "DATABASE_URL is not set. Add your Postgres connection string to the " +
-        "environment (Vercel → Settings → Environment Variables) before using " +
-        "the database.",
+      "No Postgres connection string found. Set DATABASE_URL (or POSTGRES_URL) " +
+        "in the environment (Vercel → Settings → Environment Variables) before " +
+        "using the database.",
     );
   }
 
