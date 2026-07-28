@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, Star, TrendingDown, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CandleChart, type ChartOverlay } from "./CandleChart";
+import { LiveChart } from "./LiveChart";
 import { OrderTicket } from "./OrderTicket";
 import { HistoryTable, OpenPositionsTable } from "./PositionsTable";
 import { useMarket } from "@/components/providers/MarketProvider";
@@ -45,6 +46,7 @@ export function TradingDesk() {
   const [filter, setFilter] = useState<(typeof CLASSES)[number]>("watchlist");
   const [query, setQuery] = useState("");
   const [bottomTab, setBottomTab] = useState<"open" | "history">("open");
+  const [chartMode, setChartMode] = useState<"live" | "demo">("live");
 
   const inst = getInstrument(symbol);
   const acct = getAccountType(user?.accountType);
@@ -238,6 +240,15 @@ export function TradingDesk() {
               <LiveDot />
               <SegmentedControl
                 size="sm"
+                value={chartMode}
+                onChange={(v) => setChartMode(v)}
+                options={[
+                  { value: "live", label: "Live" },
+                  { value: "demo", label: "Demo" },
+                ]}
+              />
+              <SegmentedControl
+                size="sm"
                 value={timeframe}
                 onChange={(v) => setTimeframe(v)}
                 options={TIMEFRAMES.map((t) => ({ value: t.id, label: t.label }))}
@@ -245,13 +256,19 @@ export function TradingDesk() {
             </div>
           </div>
 
-          <CandleChart
-            symbol={symbol}
-            timeframe={timeframe}
-            price={price}
-            overlays={overlays}
-            height={440}
-          />
+          {chartMode === "live" ? (
+            <div style={{ height: 440 }}>
+              <LiveChart symbol={symbol} timeframe={timeframe} />
+            </div>
+          ) : (
+            <CandleChart
+              symbol={symbol}
+              timeframe={timeframe}
+              price={price}
+              overlays={overlays}
+              height={440}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-px border-t border-white/[0.06] bg-white/[0.04] sm:grid-cols-4">
             {[

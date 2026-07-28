@@ -23,7 +23,7 @@ import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
 import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
-import { apiLogout } from "@/lib/authClient";
+import { apiLogout, apiMe } from "@/lib/authClient";
 import { cn, initialsOf } from "@/lib/utils";
 
 const NAV = [
@@ -46,9 +46,43 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hydrated = useHydrated();
   const user = useStore((s) => s.user);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Until the server session has been checked we must not bounce to /login,
+  // or a valid cookie session on a fresh device would be kicked out.
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
-    if (hydrated && !user) router.replace("/login");
+    if (!hydrated) return;
+    if (user) {
+      setSessionChecked(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { ok, user: serverUser } = await apiMe();
+      if (cancelled) return;
+      if (serverUser) {
+        useStore.getState().signInReal({
+          firstName: serverUser.firstName,
+          lastName: serverUser.lastName,
+          email: serverUser.email,
+          phone: serverUser.phone,
+          country: serverUser.country,
+          accountType: (serverUser.accountType as never) ?? "standard",
+          leverage: serverUser.leverage,
+          kycVerified: serverUser.kycStatusCache === "verified",
+        });
+      } else if (ok) {
+        // Definitive "no session" — safe to redirect.
+        router.replace("/login");
+      } else {
+        // Transient failure (e.g. DB unreachable): don't strand a demo user.
+        router.replace("/login");
+      }
+      setSessionChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [hydrated, user, router]);
 
   useEffect(() => {
@@ -57,6 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!hydrated) return <ShellSkeleton />;
   if (!user) return <ShellSkeleton />;
+  void sessionChecked;
 
   return (
     <div className="min-h-dvh bg-ink-950">

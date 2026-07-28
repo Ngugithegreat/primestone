@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { WalletView } from "@/components/app/WalletView";
+import { WalletRouter } from "@/components/app/WalletRouter";
 
 export const metadata: Metadata = {
   title: "Wallet",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function WalletPage() {
-  return <WalletView />;
+  return <WalletRouter />;
 }
