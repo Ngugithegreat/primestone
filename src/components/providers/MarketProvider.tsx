@@ -41,6 +41,17 @@ const MarketContext = createContext<MarketContextValue>({
 
 const TICK_MS = 1100;
 
+/** Our crypto instrument ids mapped to Binance ticker symbols. */
+const LIVE_CRYPTO: Record<string, string> = {
+  BTCUSD: "BTCUSDT",
+  ETHUSD: "ETHUSDT",
+  SOLUSD: "SOLUSDT",
+  XRPUSD: "XRPUSDT",
+};
+const BINANCE_TO_ID: Record<string, string> = Object.fromEntries(
+  Object.entries(LIVE_CRYPTO).map(([id, sym]) => [sym, id]),
+);
+
 /**
  * Drives every price on the site from one interval. Ticking starts only after
  * mount, so the server-rendered quote (the instrument's base price) is what
@@ -63,6 +74,11 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       setQuotes((current) => {
         const next: Record<string, Quote> = {};
         for (const key of Object.keys(current)) {
+          // Crypto is driven by the real Binance feed below — don't overwrite it.
+          if (LIVE_CRYPTO[key]) {
+            next[key] = current[key]!;
+            continue;
+          }
           const inst = byId[key]!;
           const prev = current[key]!.price;
           // Only a subset of the board moves on any given tick, which reads far
@@ -81,6 +97,59 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     }, TICK_MS);
 
     return () => window.clearInterval(id);
+  }, []);
+
+  // Real-time crypto quotes from Binance's public stream (no API key). These
+  // symbols then match the live chart exactly.
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let closed = false;
+    let retry: number | null = null;
+
+    const streams = Object.values(LIVE_CRYPTO)
+      .map((s) => `${s.toLowerCase()}@ticker`)
+      .join("/");
+
+    const connect = () => {
+      if (closed) return;
+      ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+
+      ws.onmessage = (evt) => {
+        try {
+          const { data } = JSON.parse(evt.data);
+          const symbol = BINANCE_TO_ID[data.s];
+          if (!symbol) return;
+          const price = parseFloat(data.c); // last price
+          const changePct = parseFloat(data.P); // 24h change %
+          setQuotes((current) => {
+            const prev = current[symbol]?.price ?? price;
+            return {
+              ...current,
+              [symbol]: {
+                price,
+                prev,
+                changePct,
+                dir: price > prev ? 1 : price < prev ? -1 : 0,
+              },
+            };
+          });
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+
+      ws.onclose = () => {
+        if (!closed) retry = window.setTimeout(connect, 4000);
+      };
+      ws.onerror = () => ws?.close();
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      if (retry) window.clearTimeout(retry);
+      ws?.close();
+    };
   }, []);
 
   const value = useMemo<MarketContextValue>(

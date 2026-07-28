@@ -356,13 +356,16 @@ export const useStore = create<Store>()(
       register: (input) => {
         const now = Date.now();
         const credit = getAccountType(input.accountType).demoCredit;
+        // A brand-new account starts clean: no copied positions, no active
+        // copies, no history. Trades only begin once the user chooses a
+        // provider to copy (or places their own).
         set({
           user: { ...input, createdAt: now, kycVerified: false },
           balance: credit,
           demoCredit: credit,
-          positions: seedPositions(now),
-          history: seedHistory(now, input.accountType, credit),
-          copies: seedCopies(now),
+          positions: [],
+          history: [],
+          copies: [],
           txns: seedTxns(now, credit),
           toasts: [],
           kyc: EMPTY_KYC,
@@ -390,9 +393,9 @@ export const useStore = create<Store>()(
           },
           balance: credit,
           demoCredit: credit,
-          positions: seedPositions(now),
-          history: seedHistory(now, "standard", credit),
-          copies: seedCopies(now),
+          positions: [],
+          history: [],
+          copies: [],
           txns: seedTxns(now, credit),
           kyc: EMPTY_KYC,
           sessionMode: "demo",
@@ -413,9 +416,10 @@ export const useStore = create<Store>()(
             ? {
                 balance: credit,
                 demoCredit: credit,
-                positions: seedPositions(now),
-                history: seedHistory(now, input.accountType, credit),
-                copies: seedCopies(now),
+                // Clean start — no copies or positions until the user subscribes.
+                positions: [],
+                history: [],
+                copies: [],
                 txns: seedTxns(now, credit),
                 kyc: input.kycVerified
                   ? { ...EMPTY_KYC, status: "verified" as const }
