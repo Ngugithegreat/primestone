@@ -76,6 +76,22 @@ export async function mpesaDeposit(input: { amount: number; phone?: string }) {
   return { ok: true as const, paymentId: data.paymentId as string, message: data.message as string };
 }
 
+/** Ask the server to reconcile a pending M-Pesa deposit against Safaricom. */
+export async function mpesaStatus(paymentId: string): Promise<"completed" | "failed" | "pending"> {
+  try {
+    const res = await fetch("/api/payments/mpesa/status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paymentId }),
+    });
+    if (!res.ok) return "pending";
+    const data = await res.json();
+    return data.status ?? "pending";
+  } catch {
+    return "pending";
+  }
+}
+
 export async function subscribeToProvider(input: {
   providerId: string;
   amount: number;

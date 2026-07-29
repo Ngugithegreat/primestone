@@ -120,6 +120,49 @@ export async function stkPush(input: {
   }
 }
 
+export type StkQueryResult =
+  | { status: "success"; resultDesc: string }
+  | { status: "failed"; resultDesc: string }
+  | { status: "pending"; resultDesc: string };
+
+/**
+ * Ask Safaricom for the result of an STK Push directly (the STK Query API).
+ * This is our reconciliation path — deposits are confirmed even when the async
+ * callback never arrives, which in sandbox is most of the time.
+ */
+export async function stkQuery(checkoutRequestId: string): Promise<StkQueryResult> {
+  const c = config();
+  const ts = timestamp();
+  const password = Buffer.from(`${c.shortcode}${c.passkey}${ts}`).toString("base64");
+
+  try {
+    const token = await getAccessToken();
+    const res = await fetch(`${c.base}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        BusinessShortCode: c.shortcode,
+        Password: password,
+        Timestamp: ts,
+        CheckoutRequestID: checkoutRequestId,
+      }),
+    });
+    const data = (await res.json()) as Record<string, string>;
+
+    // Still being processed → Safaricom answers with an errorCode, treat as pending.
+    if (data.errorCode || data.ResponseCode !== "0") {
+      return { status: "pending", resultDesc: data.errorMessage ?? data.ResponseDescription ?? "Processing" };
+    }
+    const code = String(data.ResultCode);
+    if (code === "0") return { status: "success", resultDesc: data.ResultDesc ?? "Success" };
+    // 1037 = timeout, 1032 = cancelled, 1 = insufficient funds, etc.
+    return { status: "failed", resultDesc: data.ResultDesc ?? `Failed (${code})` };
+  } catch (e) {
+    return { status: "pending", resultDesc: e instanceof Error ? e.message : "Query failed" };
+  }
+}
+
 /** Parse the fields we need out of Safaricom's STK callback body. */
 export function parseStkCallback(body: unknown): {
   checkoutRequestId: string | null;

@@ -24,6 +24,8 @@ import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
 import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
 import { apiLogout, apiMe } from "@/lib/authClient";
+import { useRealAccount } from "@/lib/useRealAccount";
+import { ksh } from "@/lib/accountClient";
 import { cn, initialsOf } from "@/lib/utils";
 
 const NAV = [
@@ -156,6 +158,7 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
   const positions = useStore((s) => s.positions);
   const kycStatus = useStore((s) => s.kyc.status);
   const acct = getAccountType(user?.accountType);
+  const real = useRealAccount();
 
   const counts: Record<string, number> = {
     "/traders": copies.filter((c) => c.status === "active").length,
@@ -245,12 +248,27 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
             <span className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
               Account
             </span>
-            <Badge tone="mint">Demo</Badge>
+            <Badge tone={real.isLive ? "mint" : "slate"} dot={real.isLive}>
+              {real.isLive ? "Live" : real.isReal ? "Funded" : "Demo"}
+            </Badge>
           </div>
-          <p className="mt-2 text-[14px] font-semibold text-white">{acct.name}</p>
-          <p className="mt-0.5 text-[11.5px] text-slate-500">
-            1:{user?.leverage} · {acct.spreadLabel}
-          </p>
+          {real.isLive ? (
+            <>
+              <p className="tnum mt-2 text-[16px] font-bold text-white">
+                {ksh(real.totalMinor)}
+              </p>
+              <p className="mt-0.5 text-[11.5px] text-slate-500">
+                {ksh(real.balanceMinor)} available · {ksh(real.allocatedMinor)} copying
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-[14px] font-semibold text-white">{acct.name}</p>
+              <p className="mt-0.5 text-[11.5px] text-slate-500">
+                1:{user?.leverage} · {acct.spreadLabel}
+              </p>
+            </>
+          )}
         </div>
 
         <Link
@@ -276,6 +294,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
   const balance = useStore((s) => s.balance);
   const positions = useStore((s) => s.positions);
   const signOut = useStore((s) => s.signOut);
+  const real = useRealAccount();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const floating = useMemo(() => openPnl(positions, prices), [positions, prices]);
@@ -305,40 +324,45 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
           <Menu className="h-4 w-4" />
         </button>
 
-        {/* Account metrics */}
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto">
-          <Metric label="Equity" value={equity} tone="text-white" />
-          <Divider />
-          <Metric label="Balance" value={balance} tone="text-slate-200" />
-          <Divider className="hidden sm:block" />
-          <Metric
-            label="Open P&L"
-            value={floating}
-            tone={floating >= 0 ? "text-mint-400" : "text-rose-400"}
-            signed
-            className="hidden sm:flex"
-          />
-          <Divider className="hidden xl:block" />
-          <Metric label="Free margin" value={free} tone="text-slate-200" className="hidden xl:flex" />
-          <Divider className="hidden xl:block" />
-          <div className="hidden flex-col px-3 xl:flex">
-            <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">
-              Margin level
-            </span>
-            <span
-              className={cn(
-                "tnum text-[14px] font-semibold",
-                marginLevel === 0 || marginLevel > 300
-                  ? "text-slate-200"
-                  : marginLevel > 150
-                    ? "text-amber-450"
-                    : "text-rose-400",
-              )}
-            >
-              {marginLevel > 0 ? `${marginLevel.toFixed(0)}%` : "—"}
+        {/* Account metrics — real (KES) for live accounts, demo desk otherwise */}
+        {real.isLive ? (
+          <div className="flex flex-1 items-center gap-1 overflow-x-auto">
+            <KesMetric label="Account value" value={real.totalMinor} tone="text-white" />
+            <Divider />
+            <KesMetric label="Available" value={real.balanceMinor} tone="text-slate-200" />
+            <Divider className="hidden sm:block" />
+            <KesMetric
+              label="Copying"
+              value={real.allocatedMinor}
+              tone="text-mint-400"
+              className="hidden sm:flex"
+            />
+            <span className="ml-1 hidden md:inline-flex">
+              <Badge tone="mint" dot>
+                Live account
+              </Badge>
             </span>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-1 items-center gap-1 overflow-x-auto">
+            <Metric label="Equity" value={equity} tone="text-white" />
+            <Divider />
+            <Metric label="Balance" value={balance} tone="text-slate-200" />
+            <Divider className="hidden sm:block" />
+            <Metric
+              label="Open P&L"
+              value={floating}
+              tone={floating >= 0 ? "text-mint-400" : "text-rose-400"}
+              signed
+              className="hidden sm:flex"
+            />
+            <Divider className="hidden xl:block" />
+            <Metric label="Free margin" value={free} tone="text-slate-200" className="hidden xl:flex" />
+            <span className="ml-1 hidden md:inline-flex">
+              <Badge tone="slate">Practice desk</Badge>
+            </span>
+          </div>
+        )}
 
         <div className="hidden shrink-0 items-center gap-3 md:flex">
           <LiveDot label="MARKET OPEN" />
@@ -443,6 +467,26 @@ function Metric({
         {signed && value >= 0 ? "+" : signed ? "-" : ""}$
         <SpringNumber value={Math.abs(value)} />
       </span>
+    </div>
+  );
+}
+
+/** Top-bar metric in KES minor units, for real/live accounts. */
+function KesMetric({
+  label,
+  value,
+  tone,
+  className,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex shrink-0 flex-col px-3", className)}>
+      <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">{label}</span>
+      <span className={cn("tnum text-[14px] font-semibold", tone)}>{ksh(value)}</span>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   getRealProviders,
   ksh,
   mpesaDeposit,
+  mpesaStatus,
   subscribeToProvider,
   type AccountSnapshot,
   type RealProvider,
@@ -145,24 +146,29 @@ function MpesaDeposit({
     setState("waiting");
     setMessage(res.message ?? "Check your phone and enter your M-Pesa PIN.");
 
-    // Poll the account until the pending deposit resolves.
+    // Reconcile against Safaricom until the deposit resolves. This doesn't
+    // depend on the async callback arriving — the server actively queries the
+    // transaction status and credits on success.
     const paymentId = res.paymentId;
     let ticks = 0;
     pollRef.current = window.setInterval(async () => {
       ticks++;
-      const acc = await getAccount();
-      const p = acc?.payments.find((x) => x.id === paymentId);
-      if (p?.status === "completed") {
+      const status = await mpesaStatus(paymentId);
+      if (status === "completed") {
         window.clearInterval(pollRef.current!);
         setState("done");
         setMessage("Payment received — your balance has been updated.");
         await onCredited();
-      } else if (p?.status === "failed" || ticks > 40) {
+      } else if (status === "failed" || ticks > 40) {
         window.clearInterval(pollRef.current!);
         setState("failed");
-        setMessage(p?.status === "failed" ? "The payment was cancelled or failed." : "Timed out waiting for confirmation.");
+        setMessage(
+          status === "failed"
+            ? "The payment was cancelled or failed."
+            : "Still confirming — if money left your phone, it will reflect shortly. Refresh in a moment.",
+        );
       }
-    }, 3000);
+    }, 4000);
   };
 
   const busy = state === "prompting" || state === "waiting";

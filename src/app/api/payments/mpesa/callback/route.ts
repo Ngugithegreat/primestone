@@ -28,6 +28,8 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const parsed = parseStkCallback(body);
+  // Log so the Vercel function logs show exactly what Safaricom sent.
+  console.log("[mpesa callback]", JSON.stringify({ parsed }));
   if (!parsed.checkoutRequestId) {
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Ignored" });
   }
@@ -54,7 +56,8 @@ export async function POST(req: Request) {
 
   await confirmDeposit(db, {
     paymentId: payment.id,
-    externalRef: parsed.receipt,
+    // Prefer the real receipt; fall back to the CheckoutRequestID (also unique).
+    externalRef: parsed.receipt ?? parsed.checkoutRequestId,
     rawCallback: body,
   });
 
