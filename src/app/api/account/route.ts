@@ -18,7 +18,7 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    currency: "KES",
+    currency: "USD",
     balanceMinor: cashMinor,
     kycStatus: user.kycStatusCache,
     allocations: allocations.map((a) => ({
@@ -38,7 +38,10 @@ export async function GET() {
       id: p.id,
       kind: p.kind,
       provider: p.provider,
-      amountMinor: p.amount,
+      // USD that hit the account (falls back to charged amount for older rows).
+      amountMinor: p.creditedAmount ?? p.amount,
+      chargedAmountMinor: p.amount,
+      chargedCurrency: p.currency,
       feeMinor: p.feeAmount,
       status: p.status,
       createdAt: p.createdAt,

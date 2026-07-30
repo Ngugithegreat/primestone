@@ -30,7 +30,9 @@ export type RealPayment = {
   id: string;
   kind: "deposit" | "withdrawal";
   provider: string;
-  amountMinor: number;
+  amountMinor: number; // USD credited
+  chargedAmountMinor?: number; // what was charged (e.g. KES)
+  chargedCurrency?: string;
   feeMinor: number;
   status: "initiated" | "pending" | "completed" | "failed" | "cancelled";
   createdAt: string;
@@ -119,6 +121,23 @@ export async function closeAllocation(allocationId: string) {
   return { ok: true as const, returnedMinor: data.returnedMinor as number };
 }
 
+/** Format USD minor units (cents) as $. The real account is denominated in USD. */
+export function usd(minor: number): string {
+  return `$${(minor / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Format KES minor units — used only on the deposit form (M-Pesa charges KES). */
 export function ksh(minor: number): string {
   return `KES ${(minor / 100).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Current USD→KES rate for the deposit estimate. */
+export async function getUsdKesRate(): Promise<number> {
+  try {
+    const res = await fetch("/api/fx/rate", { cache: "no-store" });
+    const data = await res.json();
+    return data.usdKes ?? 129;
+  } catch {
+    return 129;
+  }
 }

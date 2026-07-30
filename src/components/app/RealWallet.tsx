@@ -20,7 +20,8 @@ import {
   closeAllocation,
   getAccount,
   getRealProviders,
-  ksh,
+  usd,
+  getUsdKesRate,
   mpesaDeposit,
   mpesaStatus,
   subscribeToProvider,
@@ -84,7 +85,7 @@ export function RealWallet() {
                 Available balance
               </p>
               <p className="mt-1.5 font-display text-[34px] font-bold leading-none text-white">
-                {ksh(balanceMinor)}
+                {usd(balanceMinor)}
               </p>
               <p className="mt-2 text-[12.5px] text-slate-500">
                 {user?.firstName ? `${user.firstName}'s account` : "Your account"} · real funds
@@ -128,7 +129,12 @@ function MpesaDeposit({
   const [phone, setPhone] = useState(defaultPhone);
   const [state, setState] = useState<"idle" | "prompting" | "waiting" | "done" | "failed">("idle");
   const [message, setMessage] = useState<string>();
+  const [rate, setRate] = useState(129);
   const pollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    getUsdKesRate().then(setRate);
+  }, []);
 
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -227,6 +233,17 @@ function MpesaDeposit({
               </button>
             ))}
           </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
+            <span className="text-[12px] text-slate-500">Credited to your account</span>
+            <span className="tnum text-[13.5px] font-semibold text-mint-300">
+              ≈ {usd(Math.round((amount * 100) / rate))}
+            </span>
+          </div>
+          <p className="-mt-2 text-[11px] text-slate-600">
+            Your account is in USD · today&rsquo;s rate ~{rate.toFixed(1)} KES / $1
+          </p>
+
           <Field label="M-Pesa phone" htmlFor="dep-phone" hint="Safaricom number">
             <Input
               id="dep-phone"
@@ -296,7 +313,7 @@ function Providers({
       pushToast({ tone: "error", title: "Could not subscribe", body: res.error });
       return;
     }
-    pushToast({ tone: "success", title: `Subscribed to ${p.name}`, body: `${ksh(amount * 100)} allocated.` });
+    pushToast({ tone: "success", title: `Subscribed to ${p.name}`, body: `${usd(amount * 100)} allocated.` });
     setOpenId(null);
     await onSubscribed();
   };
@@ -365,7 +382,7 @@ function Providers({
                     </Button>
                   </div>
                   <p className="mt-1.5 text-[11px] text-slate-500">
-                    Available: {ksh(balanceMinor)} · fee {(p.feeBps / 100).toFixed(0)}% of profit
+                    Available: {usd(balanceMinor)} · fee {(p.feeBps / 100).toFixed(0)}% of profit
                   </p>
                 </motion.div>
               ) : (
@@ -410,7 +427,7 @@ function Allocations({
     const res = await closeAllocation(id);
     setBusyId(null);
     if (res.ok) {
-      pushToast({ tone: "success", title: "Unsubscribed", body: `${ksh(res.returnedMinor)} returned to your balance.` });
+      pushToast({ tone: "success", title: "Unsubscribed", body: `${usd(res.returnedMinor)} returned to your balance.` });
       await onChanged();
     } else {
       pushToast({ tone: "error", title: "Could not unsubscribe", body: res.error });
@@ -431,7 +448,7 @@ function Allocations({
               <p className="truncate text-[11.5px] text-slate-500">{a.provider.strategy}</p>
             </div>
             <div className="text-right">
-              <p className="tnum text-[13.5px] font-semibold text-white">{ksh(a.amountMinor)}</p>
+              <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.amountMinor)}</p>
               <button
                 onClick={() => close(a.id)}
                 disabled={busyId === a.id}
@@ -493,7 +510,7 @@ function History({ account }: { account: AccountSnapshot | null }) {
             <div className="text-right">
               <p className={cn("tnum text-[13px] font-semibold", p.kind === "deposit" ? "text-mint-400" : "text-white")}>
                 {p.kind === "deposit" ? "+" : "-"}
-                {ksh(p.amountMinor)}
+                {usd(p.amountMinor)}
               </p>
               <Badge tone={TONE[p.status] ?? "slate"}>{p.status}</Badge>
             </div>

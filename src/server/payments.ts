@@ -29,8 +29,11 @@ export async function initiateDeposit(
   input: {
     userId: string;
     provider: Provider;
-    amount: number; // major units
-    currency?: string;
+    amount: number; // charged amount, major units (e.g. KES)
+    currency?: string; // currency of `amount`
+    /** USD minor units to credit on confirmation (after FX). Defaults to the charged amount. */
+    creditedAmount?: number;
+    fxRate?: number;
     providerRequestId?: string;
     destination?: string;
   },
@@ -44,6 +47,8 @@ export async function initiateDeposit(
       kind: "deposit",
       amount: toMinor(input.amount),
       currency: input.currency ?? "USD",
+      creditedAmount: input.creditedAmount ?? toMinor(input.amount),
+      fxRate: input.fxRate != null ? String(input.fxRate) : null,
       status: "pending",
       providerRequestId: input.providerRequestId,
       destination: input.destination,
@@ -85,19 +90,21 @@ export async function confirmDeposit(
       return { ok: false, alreadyProcessed: true };
     }
 
-    const clearing = await ensureSystemAccount(tx as unknown as Database, "system_deposits_clearing", payment.currency);
-    const cash = await ensureClientCashAccount(tx as unknown as Database, payment.userId, payment.currency);
+    // The account is denominated in USD; credit the converted amount.
+    const creditMinor = payment.creditedAmount ?? payment.amount;
+    const clearing = await ensureSystemAccount(tx as unknown as Database, "system_deposits_clearing", "USD");
+    const cash = await ensureClientCashAccount(tx as unknown as Database, payment.userId, "USD");
 
     const txnId = await postWithin(tx as unknown as Database, {
       kind: "deposit",
       reference: `deposit:${input.externalRef}`,
-      memo: `${payment.provider} deposit`,
-      metadata: { paymentId: payment.id },
+      memo: `${payment.provider} deposit (${payment.amount / 100} ${payment.currency})`,
+      metadata: { paymentId: payment.id, fxRate: payment.fxRate },
       createdBy: payment.userId,
-      currency: payment.currency,
+      currency: "USD",
       legs: [
-        { accountId: clearing, amount: -payment.amount },
-        { accountId: cash, amount: payment.amount },
+        { accountId: clearing, amount: -creditMinor },
+        { accountId: cash, amount: creditMinor },
       ],
     });
 

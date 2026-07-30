@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     amount,
     riskMultiplier,
     copyStopLossBps,
-    currency: "KES",
+    currency: "USD",
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, allocationId: result.allocationId });
@@ -39,7 +39,7 @@ export async function DELETE(req: Request) {
   const allocationId = typeof body?.allocationId === "string" ? body.allocationId : "";
   if (!allocationId) return NextResponse.json({ error: "allocationId is required." }, { status: 400 });
 
-  const result = await deallocate(getDb(), { userId: user.id, allocationId, currency: "KES" });
+  const result = await deallocate(getDb(), { userId: user.id, allocationId, currency: "USD" });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, returnedMinor: result.returned });
 }

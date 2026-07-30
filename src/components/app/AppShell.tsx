@@ -25,7 +25,7 @@ import { getAccountType } from "@/lib/accounts";
 import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
 import { apiLogout, apiMe } from "@/lib/authClient";
 import { useRealAccount } from "@/lib/useRealAccount";
-import { ksh } from "@/lib/accountClient";
+import { usd } from "@/lib/accountClient";
 import { cn, initialsOf } from "@/lib/utils";
 
 const NAV = [
@@ -255,10 +255,10 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
           {real.isLive ? (
             <>
               <p className="tnum mt-2 text-[16px] font-bold text-white">
-                {ksh(real.totalMinor)}
+                {usd(real.totalMinor)}
               </p>
               <p className="mt-0.5 text-[11.5px] text-slate-500">
-                {ksh(real.balanceMinor)} available · {ksh(real.allocatedMinor)} copying
+                {usd(real.balanceMinor)} available · {usd(real.allocatedMinor)} copying
               </p>
             </>
           ) : (
@@ -486,7 +486,7 @@ function KesMetric({
   return (
     <div className={cn("flex shrink-0 flex-col px-3", className)}>
       <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">{label}</span>
-      <span className={cn("tnum text-[14px] font-semibold", tone)}>{ksh(value)}</span>
+      <span className={cn("tnum text-[14px] font-semibold", tone)}>{usd(value)}</span>
     </div>
   );
 }

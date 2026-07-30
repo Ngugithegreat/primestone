@@ -231,9 +231,12 @@ export const payments = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     provider: paymentProvider("provider").notNull(),
     kind: paymentKind("kind").notNull(),
-    amount: bigint("amount", { mode: "number" }).notNull(), // minor units
+    amount: bigint("amount", { mode: "number" }).notNull(), // charged amount, minor units (e.g. KES)
     feeAmount: bigint("fee_amount", { mode: "number" }).notNull().default(0),
-    currency: text("currency").notNull().default("USD"),
+    currency: text("currency").notNull().default("USD"), // currency of `amount`
+    // What actually hit the account (USD minor) and the FX rate used to convert.
+    creditedAmount: bigint("credited_amount", { mode: "number" }),
+    fxRate: numeric("fx_rate", { precision: 14, scale: 6 }),
     status: paymentStatus("status").notNull().default("initiated"),
     // Idempotency: a PSP reference (e.g. M-Pesa receipt) is unique, so a
     // retried callback can never credit an account twice.

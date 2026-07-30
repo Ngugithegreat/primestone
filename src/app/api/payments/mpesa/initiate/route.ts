@@ -3,6 +3,7 @@ import { getDb } from "@/db/client";
 import { currentUser } from "@/server/session";
 import { initiateDeposit } from "@/server/payments";
 import { isMpesaConfigured, normalizeMsisdn, stkPush } from "@/server/mpesa";
+import { kesToUsdMinor } from "@/server/fx";
 
 /**
  * Start an M-Pesa deposit: send an STK Push to the customer's phone. The money
@@ -40,12 +41,17 @@ export async function POST(req: Request) {
   });
   if (!push.ok) return NextResponse.json({ error: push.error }, { status: 502 });
 
+  // Lock the FX rate now: the client pays KES, the account is credited in USD.
+  const { usdMinor, rate } = await kesToUsdMinor(amount * 100);
+
   // Record the pending deposit against the CheckoutRequestID the callback carries.
   const paymentId = await initiateDeposit(getDb(), {
     userId: user.id,
     provider: "mpesa",
     amount,
     currency: "KES",
+    creditedAmount: usdMinor,
+    fxRate: rate,
     providerRequestId: push.checkoutRequestId,
     destination: phone,
   });

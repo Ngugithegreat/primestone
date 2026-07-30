@@ -5,7 +5,7 @@ import { ArrowRight, PiggyBank, ShieldCheck, TrendingUp, Users, Wallet } from "l
 import { StatTile } from "./StatTile";
 import { ButtonLink } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Primitives";
-import { ksh } from "@/lib/accountClient";
+import { usd } from "@/lib/accountClient";
 import { useRealAccount } from "@/lib/useRealAccount";
 import { useStore } from "@/lib/store";
 import { initialsOf } from "@/lib/utils";
@@ -55,7 +55,7 @@ export function LiveOverview() {
         <StatTile
           index={0}
           label="Account value"
-          value={ksh(real.totalMinor)}
+          value={usd(real.totalMinor)}
           icon={Wallet}
           accent="#00dfa4"
           delta={{ value: "Real funds", positive: true }}
@@ -63,7 +63,7 @@ export function LiveOverview() {
         <StatTile
           index={1}
           label="Available to allocate"
-          value={ksh(real.balanceMinor)}
+          value={usd(real.balanceMinor)}
           icon={PiggyBank}
           accent="#2ff0bd"
           footer="Not yet assigned"
@@ -71,7 +71,7 @@ export function LiveOverview() {
         <StatTile
           index={2}
           label="Copying"
-          value={ksh(real.allocatedMinor)}
+          value={usd(real.allocatedMinor)}
           icon={TrendingUp}
           accent="#818cf8"
           footer={`${subs.length} active subscription${subs.length === 1 ? "" : "s"}`}
@@ -102,7 +102,7 @@ export function LiveOverview() {
             <Users className="h-8 w-8 text-slate-600" />
             <p className="mt-3 text-[14px] font-medium text-white">No subscriptions yet</p>
             <p className="mt-1 max-w-sm text-[13px] text-slate-400">
-              Assign your {ksh(real.balanceMinor)} to a provider and their trades mirror into
+              Assign your {usd(real.balanceMinor)} to a provider and their trades mirror into
               your account.
             </p>
             <ButtonLink href="/wallet" size="sm" className="mt-4">
@@ -132,7 +132,7 @@ export function LiveOverview() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="tnum text-[13.5px] font-semibold text-white">{ksh(a.amountMinor)}</p>
+                  <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.amountMinor)}</p>
                   <p className="tnum text-[11.5px] text-mint-400">
                     +{Number(a.provider.roi12m).toFixed(1)}% 12M
                   </p>
