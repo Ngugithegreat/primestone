@@ -302,18 +302,20 @@ function Providers({
   pushToast: (t: { tone: "success" | "error" | "info"; title: string; body?: string }) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const [amount, setAmount] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  // The amount allocated is always the client's full available balance.
+  const amountMajor = balanceMinor / 100;
 
   const subscribe = async (p: RealProvider) => {
     setBusy(true);
-    const res = await subscribeToProvider({ providerId: p.id, amount });
+    const res = await subscribeToProvider({ providerId: p.id, amount: amountMajor });
     setBusy(false);
     if (!res.ok) {
       pushToast({ tone: "error", title: "Could not subscribe", body: res.error });
       return;
     }
-    pushToast({ tone: "success", title: `Subscribed to ${p.name}`, body: `${usd(amount * 100)} allocated.` });
+    pushToast({ tone: "success", title: `Now copying ${p.name}`, body: `${usd(balanceMinor)} allocated.` });
     setOpenId(null);
     await onSubscribed();
   };
@@ -366,34 +368,42 @@ function Providers({
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-3 flex items-end gap-2 border-t border-white/[0.06] pt-3">
-                    <Field label="Amount (KES)" htmlFor={`amt-${p.id}`} className="flex-1">
-                      <Input
-                        id={`amt-${p.id}`}
-                        type="number"
-                        min={1}
-                        value={amount || ""}
-                        onChange={(e) => setAmount(Math.max(0, Math.round(Number(e.target.value))))}
-                        placeholder={`min ${(p.minInvestmentMinor / 100).toLocaleString()}`}
-                      />
-                    </Field>
-                    <Button onClick={() => subscribe(p)} disabled={busy || amount <= 0} className="shrink-0">
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
-                    </Button>
+                  <div className="mt-3 border-t border-white/[0.06] pt-3">
+                    <p className="text-[12.5px] text-slate-300">
+                      Copy <span className="font-semibold text-white">{p.name}</span> with your
+                      full balance of{" "}
+                      <span className="font-semibold text-mint-400">{usd(balanceMinor)}</span>?
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Fee {(p.feeBps / 100).toFixed(0)}% of profit · you can unsubscribe any time to
+                      return your funds.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setOpenId(null)}
+                        disabled={busy}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => subscribe(p)}
+                        disabled={busy || balanceMinor <= 0}
+                        className="flex-1"
+                      >
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : `Copy with ${usd(balanceMinor)}`}
+                      </Button>
+                    </div>
                   </div>
-                  <p className="mt-1.5 text-[11px] text-slate-500">
-                    Available: {usd(balanceMinor)} · fee {(p.feeBps / 100).toFixed(0)}% of profit
-                  </p>
                 </motion.div>
               ) : (
                 <button
-                  onClick={() => {
-                    setOpenId(p.id);
-                    setAmount(0);
-                  }}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-[12.5px] font-medium text-slate-200 transition-colors hover:bg-white/[0.07]"
+                  onClick={() => setOpenId(p.id)}
+                  disabled={balanceMinor <= 0}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-[12.5px] font-medium text-slate-200 transition-colors hover:bg-white/[0.07] disabled:opacity-40"
                 >
-                  Subscribe
+                  {balanceMinor <= 0 ? "Deposit to copy" : "Copy this provider"}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               )}

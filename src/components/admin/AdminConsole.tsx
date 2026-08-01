@@ -1,96 +1,123 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Ban,
+  Check,
   Clock,
+  FileText,
   Flag,
+  Loader2,
   LogOut,
+  Mail,
+  MapPin,
+  Phone,
   RotateCcw,
   Search,
   ShieldCheck,
   Users2,
+  X,
   XCircle,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { Badge } from "@/components/ui/Primitives";
+import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
-import { STATUS_META, kycCounts, type AdminUser, type KycStatus } from "@/lib/kyc";
-import { STATUS_FILTERS, useAdminStore } from "@/lib/adminStore";
-import { useStore } from "@/lib/store";
-import { money, relativeTime } from "@/lib/format";
 import { cn, initialsOf } from "@/lib/utils";
-import { AdminUserDetail } from "./AdminUserDetail";
 
-/** Builds an AdminUser row that mirrors the live signed-in session. */
-function useCurrentSessionRow(): AdminUser | null {
-  const user = useStore((s) => s.user);
-  const kyc = useStore((s) => s.kyc);
-  const balance = useStore((s) => s.balance);
-  const txns = useStore((s) => s.txns);
-  const positions = useStore((s) => s.positions);
-  const copies = useStore((s) => s.copies);
+/* -------------------------------------------------------------------------- */
+/*  Types + helpers                                                            */
+/* -------------------------------------------------------------------------- */
 
-  if (!user) return null;
+type KycStatus = "unverified" | "pending" | "verified" | "rejected";
 
-  const deposits = txns.filter((t) => t.kind === "deposit").reduce((s, t) => s + t.amount, 0);
-  const withdrawals = txns.filter((t) => t.kind === "withdrawal").reduce((s, t) => s + t.amount, 0);
+type AdminUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  country: string;
+  flag: string;
+  role: string;
+  accountType: string;
+  balanceMinor: number;
+  depositsMinor: number;
+  withdrawalsMinor: number;
+  joinedAt: string;
+  flagged: boolean;
+  kycStatus: KycStatus;
+  docCount: number;
+  kyc: {
+    idType: string;
+    idNumberMasked: string;
+    dateOfBirth: string;
+    residentialAddress: string;
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    rejectionReason: string | null;
+    documents: { type: string; fileName: string; fileSize: number; storageKey: string }[];
+  } | null;
+};
 
-  return {
-    id: "session",
-    firstName: user.firstName,
-    lastName: user.lastName || "—",
-    email: user.email,
-    phone: user.phone || "—",
-    country: user.country,
-    flag: "🧑‍💻",
-    accountType: "Standard",
-    balance,
-    equity: balance,
-    deposits,
-    withdrawals,
-    openTrades: positions.length,
-    copying: copies.filter((c) => c.status === "active").length,
-    joinedAt: user.createdAt,
-    lastActiveAt: Date.now(),
-    flagged: false,
-    isCurrentSession: true,
-    kyc: {
-      status: kyc.status,
-      idType: kyc.idType,
-      idNumberMasked: kyc.idNumberMasked || "—",
-      dateOfBirth: kyc.dateOfBirth || "—",
-      residentialAddress: kyc.residentialAddress || "—",
-      documents: kyc.documents,
-      submittedAt: kyc.submittedAt,
-      reviewedAt: kyc.reviewedAt,
-      reviewedBy: kyc.reviewedAt ? "compliance@primestone.com" : null,
-      rejectionReason: kyc.rejectionReason,
-    },
-  };
-}
+const usd = (m: number) => `$${(m / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const STATUS_META: Record<KycStatus, { label: string; tone: "mint" | "amber" | "rose" | "slate" }> = {
+  verified: { label: "Verified", tone: "mint" },
+  pending: { label: "Under review", tone: "amber" },
+  rejected: { label: "Rejected", tone: "rose" },
+  unverified: { label: "Not started", tone: "slate" },
+};
+
+const FILTERS: { id: KycStatus | "all"; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "verified", label: "Verified" },
+  { id: "rejected", label: "Rejected" },
+  { id: "unverified", label: "Not started" },
+];
+
+const DOC_LABEL: Record<string, string> = {
+  id_front: "ID / passport — front",
+  id_back: "ID / passport — back",
+  selfie: "Selfie with ID",
+  proof_of_address: "Proof of address",
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Console                                                                    */
+/* -------------------------------------------------------------------------- */
 
 export function AdminConsole() {
-  const users = useAdminStore((s) => s.users);
-  const signOut = useAdminStore((s) => s.signOut);
-  const reseed = useAdminStore((s) => s.reseed);
-  const sessionRow = useCurrentSessionRow();
-
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<KycStatus | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // The live session sits at the top of the directory when signed in.
-  const allUsers = useMemo(
-    () => (sessionRow ? [sessionRow, ...users] : users),
-    [sessionRow, users],
-  );
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/users", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(data.users ?? []);
+    }
+    setLoading(false);
+  }, []);
 
-  const counts = useMemo(() => kycCounts(allUsers), [allUsers]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { total: users.length, pending: 0, verified: 0, rejected: 0, unverified: 0 };
+    for (const u of users) c[u.kycStatus] = (c[u.kycStatus] ?? 0) + 1;
+    return c;
+  }, [users]);
 
   const results = useMemo(() => {
-    let list = allUsers;
-    if (filter !== "all") list = list.filter((u) => u.kyc.status === filter);
+    let list = users;
+    if (filter !== "all") list = list.filter((u) => u.kycStatus === filter);
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter(
@@ -98,17 +125,21 @@ export function AdminConsole() {
           u.firstName.toLowerCase().includes(q) ||
           u.lastName.toLowerCase().includes(q) ||
           u.email.toLowerCase().includes(q) ||
-          u.country.toLowerCase().includes(q) ||
-          u.id.toLowerCase().includes(q),
+          u.country.toLowerCase().includes(q),
       );
     }
     return list;
-  }, [allUsers, filter, query]);
+  }, [users, filter, query]);
 
-  const selected = allUsers.find((u) => u.id === selectedId) ?? null;
+  const selected = users.find((u) => u.id === selectedId) ?? null;
+
+  const signOut = async () => {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.reload();
+  };
 
   const STATS = [
-    { label: "Total users", value: allUsers.length, icon: Users2, tone: "text-white" },
+    { label: "Total users", value: counts.total, icon: Users2, tone: "text-white" },
     { label: "Pending review", value: counts.pending, icon: Clock, tone: "text-amber-450" },
     { label: "Verified", value: counts.verified, icon: ShieldCheck, tone: "text-mint-400" },
     { label: "Rejected", value: counts.rejected, icon: XCircle, tone: "text-rose-400" },
@@ -116,22 +147,19 @@ export function AdminConsole() {
 
   return (
     <div className="min-h-dvh bg-ink-950">
-      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-ink-950/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Logo href="/admin" />
-            <Badge tone="iris" className="hidden sm:inline-flex">
-              Admin
-            </Badge>
+            <Badge tone="iris" className="hidden sm:inline-flex">Admin</Badge>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={reseed}
-              className="focus-ring hidden h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[12.5px] text-slate-300 hover:bg-white/[0.08] sm:inline-flex"
+              onClick={() => { setLoading(true); load(); }}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-[12.5px] text-slate-300 hover:bg-white/[0.08]"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Reseed demo
+              Refresh
             </button>
             <button
               onClick={signOut}
@@ -145,156 +173,297 @@ export function AdminConsole() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
-        <div className="mb-1 flex items-end justify-between">
-          <div>
-            <h1 className="font-display text-[24px] font-bold text-white">User management</h1>
-            <p className="mt-1 text-[14px] text-slate-400">
-              Review identity submissions and manage every account on the platform.
-            </p>
-          </div>
-        </div>
+        <h1 className="font-display text-[24px] font-bold text-white">User management</h1>
+        <p className="mt-1 text-[14px] text-slate-400">
+          Every registered account with live figures. Review identity submissions here.
+        </p>
 
-        {/* Stats */}
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {STATS.map((s) => (
-            <div
-              key={s.label}
-              className="card-sheen rounded-2xl border border-white/[0.07] bg-ink-880/70 p-4"
-            >
+            <div key={s.label} className="card-sheen rounded-2xl border border-white/[0.07] bg-ink-880/70 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-slate-500">{s.label}</span>
                 <s.icon className={cn("h-4 w-4", s.tone)} />
               </div>
-              <p className={cn("tnum mt-2 font-display text-[26px] font-bold", s.tone)}>
-                {s.value}
-              </p>
+              <p className={cn("tnum mt-2 font-display text-[26px] font-bold", s.tone)}>{s.value}</p>
             </div>
           ))}
         </div>
 
-        {/* Toolbar */}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative sm:max-w-xs sm:flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, email, country…"
-              className="pl-10"
-            />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, email, country…" className="pl-10" />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((f) => (
+            {FILTERS.map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
                 className={cn(
                   "focus-ring rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors",
-                  filter === f.id
-                    ? "bg-white/[0.10] text-white"
-                    : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200",
+                  filter === f.id ? "bg-white/[0.10] text-white" : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200",
                 )}
               >
                 {f.label}
-                {f.id !== "all" && (
-                  <span className="tnum ml-1.5 text-slate-500">{counts[f.id]}</span>
-                )}
+                {f.id !== "all" && <span className="tnum ml-1.5 text-slate-500">{counts[f.id] ?? 0}</span>}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Table */}
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-ink-880/50">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px]">
-              <thead>
-                <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3 font-medium">User</th>
-                  <th className="px-4 py-3 font-medium">Country</th>
-                  <th className="px-4 py-3 font-medium">Account</th>
-                  <th className="px-4 py-3 text-right font-medium">Balance</th>
-                  <th className="px-4 py-3 font-medium">KYC status</th>
-                  <th className="px-4 py-3 font-medium">Submitted</th>
-                  <th className="px-4 py-3 text-right font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((u) => (
-                  <AdminRow key={u.id} user={u} onOpen={() => setSelectedId(u.id)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {results.length === 0 && (
-            <div className="px-4 py-14 text-center text-[14px] text-slate-500">
-              No users match those filters.
+          {loading ? (
+            <div className="grid place-items-center py-20"><Loader2 className="h-6 w-6 animate-spin text-mint-400" /></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px]">
+                <thead>
+                  <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 font-medium">User</th>
+                    <th className="px-4 py-3 font-medium">Country</th>
+                    <th className="px-4 py-3 text-right font-medium">Balance</th>
+                    <th className="px-4 py-3 text-right font-medium">Deposited</th>
+                    <th className="px-4 py-3 font-medium">KYC</th>
+                    <th className="px-4 py-3 font-medium">Docs</th>
+                    <th className="px-4 py-3 font-medium">Joined</th>
+                    <th className="px-4 py-3 text-right font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((u) => (
+                    <tr
+                      key={u.id}
+                      onClick={() => setSelectedId(u.id)}
+                      className="cursor-pointer border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.03]"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink-950" style={{ background: "linear-gradient(140deg,#2ff0bd,#6366f1)" }}>
+                            {initialsOf(`${u.firstName} ${u.lastName}`)}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate text-[13.5px] font-medium text-white">{u.firstName} {u.lastName}</p>
+                              {u.role !== "client" && <Badge tone="iris">{u.role}</Badge>}
+                              {u.flagged && <Flag className="h-3 w-3 text-rose-400" />}
+                            </div>
+                            <p className="truncate text-[12px] text-slate-500">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-slate-300">{u.flag} {u.country}</td>
+                      <td className="tnum px-4 py-3 text-right text-[13px] font-medium text-white">{usd(u.balanceMinor)}</td>
+                      <td className="tnum px-4 py-3 text-right text-[13px] text-slate-400">{usd(u.depositsMinor)}</td>
+                      <td className="px-4 py-3"><Badge tone={STATUS_META[u.kycStatus].tone}>{STATUS_META[u.kycStatus].label}</Badge></td>
+                      <td className="tnum px-4 py-3 text-[13px] text-slate-400">{u.docCount}</td>
+                      <td className="px-4 py-3 text-[12.5px] text-slate-400">{new Date(u.joinedAt).toLocaleDateString("en-GB")}</td>
+                      <td className="px-4 py-3 text-right"><span className="text-[12.5px] font-medium text-mint-400">View →</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {results.length === 0 && <div className="px-4 py-14 text-center text-[14px] text-slate-500">No users match those filters.</div>}
             </div>
           )}
         </div>
-
-        <p className="mt-3 text-[12px] text-slate-600">
-          Showing {results.length} of {allUsers.length} accounts. ID numbers are masked; full
-          documents open in the review panel.
-        </p>
+        <p className="mt-3 text-[12px] text-slate-600">Showing {results.length} of {users.length} accounts.</p>
       </main>
 
       <AnimatePresence>
-        {selected && (
-          <AdminUserDetail user={selected} onClose={() => setSelectedId(null)} />
-        )}
+        {selected && <UserDrawer user={selected} onClose={() => setSelectedId(null)} onChanged={load} />}
       </AnimatePresence>
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Row                                                                        */
+/*  Detail drawer                                                              */
 /* -------------------------------------------------------------------------- */
 
-function AdminRow({ user, onOpen }: { user: AdminUser; onOpen: () => void }) {
-  const meta = STATUS_META[user.kyc.status];
+const REJECT_REASONS = [
+  "ID photo blurred — details not legible.",
+  "Selfie does not match the ID document.",
+  "Proof of address older than 3 months.",
+  "Document appears to be expired.",
+];
+
+function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: () => void; onChanged: () => Promise<void> }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState(REJECT_REASONS[0]!);
+  const [busy, setBusy] = useState(false);
+  const meta = STATUS_META[user.kycStatus];
+  const canReview = user.kycStatus === "pending";
+
+  const review = async (decision: "verified" | "rejected") => {
+    setBusy(true);
+    await fetch("/api/admin/kyc/review", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: user.id, decision, reason: decision === "rejected" ? reason : undefined }),
+    });
+    setBusy(false);
+    await onChanged();
+    onClose();
+  };
+
+  const toggleFlag = async () => {
+    await fetch("/api/admin/kyc/review", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: user.id, flagged: !user.flagged }),
+    });
+    await onChanged();
+  };
+
   return (
-    <tr
-      onClick={onOpen}
-      className="cursor-pointer border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.03]"
-    >
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <span
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink-950"
-            style={{ background: "linear-gradient(140deg,#2ff0bd,#6366f1)" }}
-          >
-            {initialsOf(`${user.firstName} ${user.lastName}`)}
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-[13.5px] font-medium text-white">
-                {user.firstName} {user.lastName}
-              </p>
-              {user.isCurrentSession && <Badge tone="mint">You</Badge>}
-              {user.flagged && <Flag className="h-3 w-3 text-rose-400" />}
+    <>
+      <motion.div className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+      <motion.aside
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-white/[0.09] bg-ink-900"
+        initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-full text-[15px] font-semibold text-ink-950" style={{ background: "linear-gradient(140deg,#2ff0bd,#6366f1)" }}>
+              {initialsOf(`${user.firstName} ${user.lastName}`)}
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-[17px] font-semibold text-white">{user.firstName} {user.lastName}</h2>
+                {user.role !== "client" && <Badge tone="iris">{user.role}</Badge>}
+              </div>
+              <p className="text-[12.5px] text-slate-500">{user.flag} {user.country}</p>
             </div>
-            <p className="truncate text-[12px] text-slate-500">{user.email}</p>
           </div>
+          <button onClick={onClose} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/[0.07] hover:text-white"><X className="h-4 w-4" /></button>
         </div>
-      </td>
-      <td className="px-4 py-3 text-[13px] text-slate-300">
-        {user.flag} {user.country}
-      </td>
-      <td className="px-4 py-3 text-[13px] text-slate-400">{user.accountType}</td>
-      <td className="tnum px-4 py-3 text-right text-[13px] font-medium text-white">
-        {money(user.balance)}
-      </td>
-      <td className="px-4 py-3">
-        <Badge tone={meta.tone}>{meta.label}</Badge>
-      </td>
-      <td className="px-4 py-3 text-[12.5px] text-slate-400">
-        {user.kyc.submittedAt ? relativeTime(user.kyc.submittedAt, Date.now()) : "—"}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span className="text-[12.5px] font-medium text-mint-400">Review →</span>
-      </td>
-    </tr>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className={cn("flex items-center justify-between rounded-xl border p-3.5",
+            user.kycStatus === "verified" ? "border-mint-500/25 bg-mint-500/[0.06]" : user.kycStatus === "pending" ? "border-amber-450/25 bg-amber-450/[0.06]" : user.kycStatus === "rejected" ? "border-rose-500/25 bg-rose-500/[0.06]" : "border-white/[0.08] bg-white/[0.02]")}>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.1em] text-slate-500">KYC status</p>
+              <div className="mt-1"><Badge tone={meta.tone}>{meta.label}</Badge></div>
+            </div>
+            {user.kyc?.submittedAt && <p className="text-right text-[11.5px] text-slate-500">Submitted {new Date(user.kyc.submittedAt).toLocaleString("en-GB")}</p>}
+          </div>
+
+          <Section title="Contact">
+            <Row icon={Mail} label="Email" value={user.email} />
+            <Row icon={Phone} label="Phone" value={user.phone} />
+            <Row icon={MapPin} label="Country" value={`${user.flag} ${user.country}`} />
+          </Section>
+
+          <Section title="Account">
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Balance" value={usd(user.balanceMinor)} />
+              <Metric label="Deposited" value={usd(user.depositsMinor)} />
+              <Metric label="Withdrawn" value={usd(user.withdrawalsMinor)} />
+              <Metric label="Account type" value={user.accountType} />
+            </div>
+            <p className="mt-2 text-[11.5px] text-slate-500">Joined {new Date(user.joinedAt).toLocaleString("en-GB")}</p>
+          </Section>
+
+          {user.kyc ? (
+            <>
+              <Section title="Identity details">
+                <Row label="Document type" value={user.kyc.idType} />
+                <Row label="Document number" value={user.kyc.idNumberMasked} mono />
+                <Row label="Date of birth" value={user.kyc.dateOfBirth} />
+                <Row label="Residential address" value={user.kyc.residentialAddress} />
+              </Section>
+              <Section title={`Documents (${user.kyc.documents.length})`}>
+                {user.kyc.documents.length === 0 ? (
+                  <p className="text-[13px] text-slate-500">No documents uploaded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {user.kyc.documents.map((d) => (
+                      <div key={d.type} className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                        <FileText className="h-4 w-4 shrink-0 text-mint-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12.5px] font-medium text-white">{DOC_LABEL[d.type] ?? d.type}</p>
+                          <p className="truncate text-[11px] text-slate-500">{d.fileName} · {Math.round(d.fileSize / 1024)} KB</p>
+                        </div>
+                        {d.storageKey?.startsWith("http") && (
+                          <a href={d.storageKey} target="_blank" rel="noopener noreferrer" className="text-[12px] font-medium text-mint-400 hover:text-mint-300">Open</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          ) : (
+            <div className="mt-5 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 text-center">
+              <p className="text-[13px] text-slate-400">This user has not submitted identity documents yet.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-white/[0.07] p-4">
+          {rejecting ? (
+            <div className="space-y-3">
+              <p className="text-[13px] font-medium text-white">Reason for rejection</p>
+              <div className="space-y-1.5">
+                {REJECT_REASONS.map((r) => (
+                  <button key={r} onClick={() => setReason(r)} className={cn("focus-ring flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12.5px] transition-colors", reason === r ? "border-rose-500/40 bg-rose-500/[0.08] text-white" : "border-white/[0.07] text-slate-400 hover:bg-white/[0.04]")}>
+                    <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-full border", reason === r ? "border-rose-500 bg-rose-500" : "border-white/20")}>{reason === r && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}</span>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setRejecting(false)} className="flex-1">Cancel</Button>
+                <Button variant="danger" onClick={() => review("rejected")} disabled={busy} className="flex-1"><XCircle className="h-4 w-4" />Confirm</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={toggleFlag} className={cn("focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors", user.flagged ? "border-rose-500/40 bg-rose-500/10 text-rose-400" : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.07]")} title={user.flagged ? "Remove flag" : "Flag account"}>
+                <Flag className="h-4 w-4" />
+              </button>
+              {canReview ? (
+                <>
+                  <Button variant="secondary" onClick={() => setRejecting(true)} className="flex-1"><Ban className="h-4 w-4" />Reject</Button>
+                  <Button onClick={() => review("verified")} disabled={busy} className="flex-1"><ShieldCheck className="h-4 w-4" />Approve</Button>
+                </>
+              ) : (
+                <div className="flex-1 text-center text-[12.5px] text-slate-500">
+                  {user.kycStatus === "verified" ? "This account is verified." : user.kycStatus === "rejected" ? "Awaiting re-submission." : "No pending submission."}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.aside>
+    </>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-5">
+      <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function Row({ icon: Icon, label, value, mono }: { icon?: typeof Mail; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-white/[0.05] py-2 last:border-0">
+      <span className="flex items-center gap-2 text-[12.5px] text-slate-500">{Icon && <Icon className="h-3.5 w-3.5" />}{label}</span>
+      <span className={cn("text-right text-[13px] text-slate-200", mono && "tnum")}>{value}</span>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+      <p className="text-[10.5px] text-slate-500">{label}</p>
+      <p className="tnum mt-0.5 text-[13.5px] font-semibold text-white">{value}</p>
+    </div>
   );
 }

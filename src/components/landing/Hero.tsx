@@ -226,12 +226,37 @@ function HeroVisual() {
 
 const HEADLINE_WORDS = ["Copy", "the", "traders", "who", "actually", "win."];
 
+// Friendly hero photo. To use your own, drop an image at /public/hero.jpg and
+// set HERO_IMAGE = "/hero.jpg".
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1500&q=80";
+
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pt-17">
+    <section className="relative flex min-h-[86vh] items-center overflow-hidden pt-17">
+      {/* Background photo of a happy person */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-cover bg-[center_right_-2rem] lg:bg-[center_right]"
+        style={{ backgroundImage: `url("${HERO_IMAGE}")` }}
+        aria-hidden="true"
+      />
+      {/* Dark gradient so the copy stays legible over the photo */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(100deg, rgba(4,6,10,0.97) 0%, rgba(4,6,10,0.92) 40%, rgba(4,6,10,0.6) 64%, rgba(4,6,10,0.28) 100%)",
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
+        style={{ background: "linear-gradient(to top, #04060a, transparent)" }}
+        aria-hidden="true"
+      />
 
-      <div className="relative mx-auto max-w-7xl px-5 pb-24 pt-16 sm:px-8 lg:pb-32 lg:pt-24">
-        <div className="grid items-center gap-10 sm:gap-16 lg:grid-cols-[1.06fr_1fr] lg:gap-14">
+      <div className="relative mx-auto w-full max-w-7xl px-5 pb-24 pt-16 sm:px-8 lg:pb-28 lg:pt-20">
+        <div className="grid items-center gap-10 lg:grid-cols-2">
           {/* -- Copy ------------------------------------------------------- */}
           <div>
             <motion.div
@@ -331,10 +356,8 @@ export function Hero() {
             </motion.div>
           </div>
 
-          {/* -- Visual ----------------------------------------------------- */}
-          <div className="relative lg:pl-6">
-            <HeroVisual />
-          </div>
+          {/* Right column is intentionally open so the hero photo shows through. */}
+          <div className="hidden lg:block" aria-hidden="true" />
         </div>
       </div>
 
