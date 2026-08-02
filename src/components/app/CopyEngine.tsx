@@ -18,8 +18,13 @@ import { getTrader } from "@/lib/traders";
  */
 export function CopyEngine() {
   const { prices, live } = useMarket();
+  const sessionMode = useStore((s) => s.sessionMode);
   const positions = useStore((s) => s.positions);
   const copies = useStore((s) => s.copies);
+
+  // The simulated trading engine only runs for demo sessions. On a real (live)
+  // account, copied trades are handled by the backend, never this demo loop.
+  const demo = sessionMode !== "real";
 
   // Read through refs inside the interval so the timer isn't torn down and
   // recreated on every price tick.
@@ -30,7 +35,7 @@ export function CopyEngine() {
 
   /* ---- Stop-loss / take-profit ------------------------------------------ */
   useEffect(() => {
-    if (!live || positions.length === 0) return;
+    if (!demo || !live || positions.length === 0) return;
     const { closePosition, pushToast } = useStore.getState();
 
     for (const p of positions) {
@@ -51,11 +56,11 @@ export function CopyEngine() {
         });
       }
     }
-  }, [prices, positions, live]);
+  }, [prices, positions, live, demo]);
 
   /* ---- Mirrored signals -------------------------------------------------- */
   useEffect(() => {
-    if (!live) return;
+    if (!demo || !live) return;
 
     const timer = window.setInterval(() => {
       const active = copiesRef.current.filter((c) => c.status === "active");
@@ -108,11 +113,11 @@ export function CopyEngine() {
     }, 24_000);
 
     return () => window.clearInterval(timer);
-  }, [live]);
+  }, [live, demo]);
 
   /* ---- Copy stop-loss ---------------------------------------------------- */
   useEffect(() => {
-    if (!live) return;
+    if (!demo || !live) return;
 
     const timer = window.setInterval(() => {
       const state = useStore.getState();
@@ -136,7 +141,7 @@ export function CopyEngine() {
     }, 8_000);
 
     return () => window.clearInterval(timer);
-  }, [live]);
+  }, [live, demo]);
 
   return null;
 }

@@ -56,7 +56,6 @@ export function KycFlow({ compact = false }: { compact?: boolean }) {
   const [error, setError] = useState<string>();
 
   const allUploaded = REQUIRED_DOCS.every((d) => files[d]);
-  const ready = idNumber.trim().length >= 5 && dob !== "" && address.trim().length >= 6 && allUploaded;
 
   const onFile = (type: KycDocType, file: File | undefined) => {
     if (!file) return;
@@ -77,10 +76,16 @@ export function KycFlow({ compact = false }: { compact?: boolean }) {
   };
 
   const submit = () => {
-    if (!ready) {
-      setError("Please complete every field and upload all four documents.");
-      return;
+    // Validate on click with a specific message, rather than a silently
+    // disabled button that gives the user no clue what is missing.
+    if (idNumber.trim().length < 4) return setError("Enter your document number.");
+    if (dob === "") return setError("Select your date of birth.");
+    if (address.trim().length < 3) return setError("Enter your residential address.");
+    if (!allUploaded) {
+      const missing = REQUIRED_DOCS.filter((d) => !files[d]).map((d) => DOC_LABELS[d]);
+      return setError(`Please upload: ${missing.join(", ")}.`);
     }
+    setError(undefined);
     submitKyc({
       idType,
       idNumberMasked: maskId(idNumber),
@@ -199,7 +204,7 @@ export function KycFlow({ compact = false }: { compact?: boolean }) {
       {error && <p className="text-[12.5px] text-rose-400">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-3 pt-1">
-        <Button onClick={submit} disabled={!ready}>
+        <Button onClick={submit}>
           <ShieldCheck className="h-4 w-4" />
           Submit for verification
         </Button>
