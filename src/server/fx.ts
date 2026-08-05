@@ -43,3 +43,18 @@ export async function kesToUsdMinor(kesMinor: number): Promise<{ usdMinor: numbe
   const rate = await usdKesRate();
   return { usdMinor: Math.round(kesMinor / rate), rate };
 }
+
+/**
+ * The client chooses a USD amount; M-Pesa charges KES. Returns the whole-KES
+ * amount to charge, the USD minor units to credit, and the rate used.
+ */
+export async function usdToKesCharge(
+  amountUsd: number,
+): Promise<{ kesWhole: number; usdMinor: number; rate: number }> {
+  const rate = await usdKesRate();
+  return {
+    kesWhole: Math.max(1, Math.round(amountUsd * rate)),
+    usdMinor: Math.round(amountUsd * 100),
+    rate,
+  };
+}

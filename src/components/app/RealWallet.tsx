@@ -125,7 +125,8 @@ function MpesaDeposit({
   defaultPhone: string;
   onCredited: () => Promise<void>;
 }) {
-  const [amount, setAmount] = useState(500);
+  const MIN_USD = 100;
+  const [amount, setAmount] = useState(MIN_USD); // USD
   const [phone, setPhone] = useState(defaultPhone);
   const [state, setState] = useState<"idle" | "prompting" | "waiting" | "done" | "failed">("idle");
   const [message, setMessage] = useState<string>();
@@ -141,9 +142,14 @@ function MpesaDeposit({
   }, []);
 
   const start = async () => {
+    if (amount < MIN_USD) {
+      setState("failed");
+      setMessage(`The minimum deposit is $${MIN_USD}.`);
+      return;
+    }
     setMessage(undefined);
     setState("prompting");
-    const res = await mpesaDeposit({ amount, phone });
+    const res = await mpesaDeposit({ amountUsd: amount, phone });
     if (!res.ok) {
       setState("failed");
       setMessage(res.error);
@@ -205,18 +211,25 @@ function MpesaDeposit({
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          <Field label="Amount (KES)" htmlFor="dep-amount">
-            <Input
-              id="dep-amount"
-              type="number"
-              min={1}
-              value={amount}
-              onChange={(e) => setAmount(Math.max(1, Math.round(Number(e.target.value))))}
-              disabled={busy}
-            />
+          <Field label="Amount (USD)" htmlFor="dep-amount" hint={`Minimum $${MIN_USD}`}>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-slate-400">
+                $
+              </span>
+              <Input
+                id="dep-amount"
+                type="number"
+                min={MIN_USD}
+                step={50}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(0, Math.round(Number(e.target.value))))}
+                disabled={busy}
+                className="pl-7"
+              />
+            </div>
           </Field>
           <div className="flex flex-wrap gap-2">
-            {[100, 500, 1000, 2500, 5000].map((v) => (
+            {[100, 200, 300, 500, 1000].map((v) => (
               <button
                 key={v}
                 type="button"
@@ -229,19 +242,20 @@ function MpesaDeposit({
                     : "border-white/10 bg-white/[0.02] text-slate-300 hover:bg-white/[0.06]",
                 )}
               >
-                {v.toLocaleString()}
+                ${v.toLocaleString()}
               </button>
             ))}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
-            <span className="text-[12px] text-slate-500">Credited to your account</span>
-            <span className="tnum text-[13.5px] font-semibold text-mint-300">
-              ≈ {usd(Math.round((amount * 100) / rate))}
+            <span className="text-[12px] text-slate-500">You&rsquo;ll pay on M-Pesa</span>
+            <span className="tnum text-[13.5px] font-semibold text-white">
+              ≈ KES {Math.round(amount * rate).toLocaleString()}
             </span>
           </div>
           <p className="-mt-2 text-[11px] text-slate-600">
-            Your account is in USD · today&rsquo;s rate ~{rate.toFixed(1)} KES / $1
+            Charged in KES at today&rsquo;s rate (~{rate.toFixed(1)} / $1) · credited to your
+            account as ${amount.toLocaleString()}.
           </p>
 
           <Field label="M-Pesa phone" htmlFor="dep-phone" hint="Safaricom number">
@@ -278,7 +292,7 @@ function MpesaDeposit({
               ? "Waiting for your PIN…"
               : state === "prompting"
                 ? "Sending prompt…"
-                : `Deposit KES ${amount.toLocaleString()}`}
+                : `Deposit $${amount.toLocaleString()}`}
           </Button>
         </div>
       )}

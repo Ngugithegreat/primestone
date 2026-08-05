@@ -67,7 +67,7 @@ export async function getRealProviders(): Promise<RealProvider[]> {
   }
 }
 
-export async function mpesaDeposit(input: { amount: number; phone?: string }) {
+export async function mpesaDeposit(input: { amountUsd: number; phone?: string }) {
   const res = await fetch("/api/payments/mpesa/initiate", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -77,6 +77,7 @@ export async function mpesaDeposit(input: { amount: number; phone?: string }) {
   if (!res.ok) return { ok: false as const, error: data.error ?? "Deposit failed." };
   return { ok: true as const, paymentId: data.paymentId as string, message: data.message as string };
 }
+
 
 /** Ask the server to reconcile a pending M-Pesa deposit against Safaricom. */
 export async function mpesaStatus(paymentId: string): Promise<"completed" | "failed" | "pending"> {
