@@ -92,7 +92,7 @@ export function LoginForm() {
           label="Password"
           htmlFor="password"
           hint={
-            <Link href="/login" className="text-mint-400 hover:text-mint-300">
+            <Link href="/forgot-password" className="text-mint-400 hover:text-mint-300">
               Forgot?
             </Link>
           }

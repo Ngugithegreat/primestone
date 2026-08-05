@@ -56,6 +56,39 @@ export function apiLogin(email: string, password: string) {
   return post("/api/auth/login", { email, password });
 }
 
+export async function apiForgotPassword(email: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/forgot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Something went wrong." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
+export async function apiResetPassword(
+  token: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Could not reset password." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
 export async function apiLogout() {
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
 }
