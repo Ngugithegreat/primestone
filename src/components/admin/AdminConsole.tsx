@@ -57,7 +57,13 @@ type AdminUser = {
     submittedAt: string | null;
     reviewedAt: string | null;
     rejectionReason: string | null;
-    documents: { type: string; fileName: string; fileSize: number; storageKey: string }[];
+    documents: {
+      type: string;
+      fileName: string;
+      fileSize: number;
+      storageKey: string;
+      contentType?: string;
+    }[];
   } | null;
 };
 
@@ -377,19 +383,50 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
                 {user.kyc.documents.length === 0 ? (
                   <p className="text-[13px] text-slate-500">No documents uploaded.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {user.kyc.documents.map((d) => (
-                      <div key={d.type} className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
-                        <FileText className="h-4 w-4 shrink-0 text-mint-400" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[12.5px] font-medium text-white">{DOC_LABEL[d.type] ?? d.type}</p>
-                          <p className="truncate text-[11px] text-slate-500">{d.fileName} · {Math.round(d.fileSize / 1024)} KB</p>
-                        </div>
-                        {d.storageKey?.startsWith("http") && (
-                          <a href={d.storageKey} target="_blank" rel="noopener noreferrer" className="text-[12px] font-medium text-mint-400 hover:text-mint-300">Open</a>
-                        )}
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {user.kyc.documents.map((d) => {
+                      const url = d.storageKey?.startsWith("http") ? d.storageKey : null;
+                      const isImage =
+                        url != null &&
+                        (d.contentType?.startsWith("image/") ||
+                          /\.(jpe?g|png|webp|heic|gif)$/i.test(d.fileName));
+                      return (
+                        <a
+                          key={d.type}
+                          href={url ?? undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            "group block overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02] transition-colors",
+                            url ? "hover:border-mint-500/40" : "cursor-default",
+                          )}
+                        >
+                          <div className="relative grid aspect-[4/3] place-items-center bg-black/30">
+                            {isImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={url!}
+                                alt={DOC_LABEL[d.type] ?? d.type}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                              />
+                            ) : (
+                              <FileText className="h-8 w-8 text-slate-500" />
+                            )}
+                            {url && (
+                              <span className="absolute right-1.5 top-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+                                Open ↗
+                              </span>
+                            )}
+                          </div>
+                          <div className="p-2.5">
+                            <p className="text-[12px] font-medium text-white">{DOC_LABEL[d.type] ?? d.type}</p>
+                            <p className="truncate text-[10.5px] text-slate-500">
+                              {d.fileName} · {Math.round(d.fileSize / 1024)} KB
+                            </p>
+                          </div>
+                        </a>
+                      );
+                    })}
                   </div>
                 )}
               </Section>

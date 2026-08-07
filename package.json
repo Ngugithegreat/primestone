@@ -17,6 +17,7 @@
     "verify:backend": "NODE_OPTIONS=--conditions=react-server tsx scripts/verify-backend.ts"
   },
   "dependencies": {
+    "@vercel/blob": "^2.7.0",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.25.0",

@@ -169,6 +169,8 @@ type Actions = {
   /** Used by the admin console to approve or reject the live session's submission. */
   reviewKyc: (status: Extract<KycStatus, "verified" | "rejected">, reason?: string) => void;
   resetKyc: () => void;
+  /** Sync the KYC status from the server (real, ledger-backed accounts). */
+  setKycStatus: (status: KycStatus) => void;
 
   toggleWatch: (symbol: string) => void;
   pushToast: (t: Omit<Toast, "id">) => void;
@@ -658,6 +660,14 @@ export const useStore = create<Store>()(
       },
 
       resetKyc: () => set({ kyc: EMPTY_KYC }),
+
+      setKycStatus: (status) => {
+        const { kyc, user } = get();
+        set({
+          kyc: { ...kyc, status },
+          user: user ? { ...user, kycVerified: status === "verified" } : user,
+        });
+      },
 
       toggleWatch: (symbol) => {
         const list = get().watchlist;

@@ -95,6 +95,7 @@ export async function GET() {
               fileName: d.fileName,
               fileSize: d.fileSize,
               storageKey: d.storageKey,
+              contentType: d.contentType,
             })),
           }
         : null,
