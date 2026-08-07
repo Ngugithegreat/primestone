@@ -19,7 +19,10 @@ function config() {
   const shortcode = process.env.MPESA_SHORTCODE ?? "174379";
   const passkey = process.env.MPESA_PASSKEY ?? "";
   const callbackUrl = process.env.MPESA_CALLBACK_URL ?? "";
-  return { env, base, consumerKey, consumerSecret, shortcode, passkey, callbackUrl };
+  // "CustomerPayBillOnline" for a Pay Bill shortcode (default), or
+  // "CustomerBuyGoodsOnline" if 9658820 is actually a Buy Goods / Till number.
+  const transactionType = process.env.MPESA_TRANSACTION_TYPE ?? "CustomerPayBillOnline";
+  return { env, base, consumerKey, consumerSecret, shortcode, passkey, callbackUrl, transactionType };
 }
 
 export function isMpesaConfigured(): boolean {
@@ -94,7 +97,7 @@ export async function stkPush(input: {
         BusinessShortCode: c.shortcode,
         Password: password,
         Timestamp: ts,
-        TransactionType: "CustomerPayBillOnline",
+        TransactionType: c.transactionType,
         Amount: Math.max(1, Math.round(input.amount)),
         PartyA: msisdn,
         PartyB: c.shortcode,
