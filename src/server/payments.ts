@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { payments, users } from "@/db/schema";
+import { auditLog, payments, users } from "@/db/schema";
 import {
   ensureClientCashAccount,
   ensureSystemAccount,
@@ -202,4 +202,110 @@ export async function listPayments(db: Database, userId: string) {
     .from(payments)
     .where(eq(payments.userId, userId))
     .orderBy(desc(payments.createdAt));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Withdrawal settlement (manual — C2B paybills can't auto-payout)            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mark a pending withdrawal as paid, once the operator has sent the money out
+ * of band (e.g. an M-Pesa send-money). The client's cash was already debited
+ * into the withdrawals-clearing account at request time, so this only flips the
+ * payment to completed and records who did it.
+ */
+export async function completeWithdrawal(
+  db: Database,
+  input: { paymentId: string; reviewerId?: string | null; externalRef?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return db.transaction(async (tx) => {
+    const [p] = await tx.select().from(payments).where(eq(payments.id, input.paymentId)).limit(1);
+    if (!p || p.kind !== "withdrawal") return { ok: false as const, error: "Withdrawal not found." };
+    if (p.status !== "pending") return { ok: false as const, error: "This withdrawal is already processed." };
+
+    await tx
+      .update(payments)
+      .set({
+        status: "completed",
+        externalRef: input.externalRef?.trim() || p.externalRef,
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, p.id));
+
+    await tx.insert(auditLog).values({
+      actorId: input.reviewerId ?? null,
+      action: "withdrawal.paid",
+      targetType: "payment",
+      targetId: p.id,
+      metadata: input.externalRef ? { externalRef: input.externalRef } : null,
+    });
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Reject a pending withdrawal and return the funds to the client's cash. Fully
+ * reverses the request-time ledger movement (amount from clearing, and any fee
+ * from the fees account, both back to cash), so the ledger stays balanced.
+ */
+export async function rejectWithdrawal(
+  db: Database,
+  input: { paymentId: string; reviewerId?: string | null; reason?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return db.transaction(async (tx) => {
+    const [p] = await tx.select().from(payments).where(eq(payments.id, input.paymentId)).limit(1);
+    if (!p || p.kind !== "withdrawal") return { ok: false as const, error: "Withdrawal not found." };
+    if (p.status !== "pending") return { ok: false as const, error: "This withdrawal is already processed." };
+
+    const currency = p.currency;
+    const cash = await ensureClientCashAccount(tx as unknown as Database, p.userId, currency);
+    const clearing = await ensureSystemAccount(tx as unknown as Database, "system_withdrawals_clearing", currency);
+
+    const legs = [
+      { accountId: clearing, amount: -p.amount },
+      { accountId: cash, amount: p.amount + p.feeAmount },
+    ];
+    if (p.feeAmount > 0) {
+      const feeAcct = await ensureSystemAccount(tx as unknown as Database, "system_fees", currency);
+      legs.push({ accountId: feeAcct, amount: -p.feeAmount });
+    }
+
+    await postWithin(tx as unknown as Database, {
+      kind: "adjustment",
+      reference: `withdrawal-reversal:${p.id}`,
+      memo: "Withdrawal rejected — funds returned",
+      createdBy: input.reviewerId ?? undefined,
+      currency,
+      legs,
+    });
+
+    await tx
+      .update(payments)
+      .set({
+        status: "cancelled",
+        rawCallback: input.reason ? { rejected: input.reason } : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(payments.id, p.id));
+
+    await tx.insert(auditLog).values({
+      actorId: input.reviewerId ?? null,
+      action: "withdrawal.rejected",
+      targetType: "payment",
+      targetId: p.id,
+      metadata: input.reason ? { reason: input.reason } : null,
+    });
+    return { ok: true as const };
+  });
+}
+
+/** All withdrawal requests with the requesting user, newest first. */
+export async function listWithdrawals(db: Database, opts?: { status?: string }) {
+  const rows = await db
+    .select({ payment: payments, user: users })
+    .from(payments)
+    .innerJoin(users, eq(payments.userId, users.id))
+    .where(eq(payments.kind, "withdrawal"))
+    .orderBy(desc(payments.createdAt));
+  return opts?.status ? rows.filter((r) => r.payment.status === opts.status) : rows;
 }

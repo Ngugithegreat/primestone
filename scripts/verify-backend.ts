@@ -31,7 +31,13 @@ import {
   toMajor,
   toMinor,
 } from "../src/server/ledger";
-import { confirmDeposit, initiateDeposit, requestWithdrawal } from "../src/server/payments";
+import {
+  completeWithdrawal,
+  confirmDeposit,
+  initiateDeposit,
+  rejectWithdrawal,
+  requestWithdrawal,
+} from "../src/server/payments";
 import { submitKyc, reviewKyc } from "../src/server/kyc";
 import { createProvider } from "../src/server/providers";
 import { allocate, deallocate, listAllocations } from "../src/server/allocations";
@@ -238,6 +244,33 @@ async function main() {
   });
   check("overdraw rejected", !overdraw.ok);
   await assertLedgerBalanced(db, "after withdrawal");
+
+  // Operator marks the $150 withdrawal as paid — status flips, no ledger change.
+  const paid = await completeWithdrawal(db, {
+    paymentId: wd.ok ? wd.paymentId : "",
+  });
+  check("withdrawal marked paid", paid.ok);
+  cash = await clientCashBalance(db, userId);
+  check("marking paid does not change cash ($50.00)", cash === toMinor(50), `(got ${toMajor(cash)})`);
+
+  // A second request that is rejected returns the funds to the client's cash.
+  const wd2 = await requestWithdrawal(db, {
+    userId,
+    provider: "mpesa",
+    amount: 20,
+    destination: "+254700000001",
+  });
+  check("second withdrawal ($20) locks funds", wd2.ok);
+  cash = await clientCashBalance(db, userId);
+  check("cash reduced to $30.00 while pending", cash === toMinor(30), `(got ${toMajor(cash)})`);
+  const rejected = await rejectWithdrawal(db, {
+    paymentId: wd2.ok ? wd2.paymentId : "",
+    reason: "test",
+  });
+  check("withdrawal rejected", rejected.ok);
+  cash = await clientCashBalance(db, userId);
+  check("rejected withdrawal refunds to $50.00", cash === toMinor(50), `(got ${toMajor(cash)})`);
+  await assertLedgerBalanced(db, "after withdrawal settlement");
 
   /* --- Deallocate ------------------------------------------------------- */
   console.log("\nDeallocation");

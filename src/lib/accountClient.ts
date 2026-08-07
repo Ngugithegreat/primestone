@@ -133,6 +133,17 @@ export async function subscribeToProvider(input: {
   return { ok: true as const, allocationId: data.allocationId as string };
 }
 
+export async function withdrawRequest(input: { amount: number; phone?: string }) {
+  const res = await fetch("/api/payments/withdraw", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false as const, error: data.error ?? "Withdrawal failed." };
+  return { ok: true as const, paymentId: data.paymentId as string };
+}
+
 export async function closeAllocation(allocationId: string) {
   const res = await fetch("/api/allocations", {
     method: "DELETE",
