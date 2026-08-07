@@ -106,6 +106,7 @@ export async function stkPush(input: {
     });
 
     const data = (await res.json()) as Record<string, string>;
+    console.log("[stkPush]", JSON.stringify(data));
     if (data.ResponseCode === "0") {
       return {
         ok: true,
@@ -121,9 +122,9 @@ export async function stkPush(input: {
 }
 
 export type StkQueryResult =
-  | { status: "success"; resultDesc: string }
-  | { status: "failed"; resultDesc: string }
-  | { status: "pending"; resultDesc: string };
+  | { status: "success"; resultDesc: string; resultCode?: string }
+  | { status: "failed"; resultDesc: string; resultCode?: string }
+  | { status: "pending"; resultDesc: string; resultCode?: string };
 
 /**
  * Ask Safaricom for the result of an STK Push directly (the STK Query API).
@@ -149,15 +150,18 @@ export async function stkQuery(checkoutRequestId: string): Promise<StkQueryResul
       }),
     });
     const data = (await res.json()) as Record<string, string>;
+    // Log the raw Safaricom response so the exact ResultCode is visible in the
+    // Vercel function logs when diagnosing a failed deposit.
+    console.log("[stkQuery]", JSON.stringify(data));
 
     // Still being processed → Safaricom answers with an errorCode, treat as pending.
     if (data.errorCode || data.ResponseCode !== "0") {
       return { status: "pending", resultDesc: data.errorMessage ?? data.ResponseDescription ?? "Processing" };
     }
     const code = String(data.ResultCode);
-    if (code === "0") return { status: "success", resultDesc: data.ResultDesc ?? "Success" };
-    // 1037 = timeout, 1032 = cancelled, 1 = insufficient funds, etc.
-    return { status: "failed", resultDesc: data.ResultDesc ?? `Failed (${code})` };
+    if (code === "0") return { status: "success", resultDesc: data.ResultDesc ?? "Success", resultCode: code };
+    // 1032 = cancelled, 1037 = timeout, 1 = insufficient, 2001 = wrong PIN, etc.
+    return { status: "failed", resultDesc: data.ResultDesc ?? `Failed (${code})`, resultCode: code };
   } catch (e) {
     return { status: "pending", resultDesc: e instanceof Error ? e.message : "Query failed" };
   }

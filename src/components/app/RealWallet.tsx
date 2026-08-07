@@ -184,7 +184,7 @@ function MpesaDeposit({
     let ticks = 0;
     pollRef.current = window.setInterval(async () => {
       ticks++;
-      const { status, detail } = await mpesaStatus(paymentId);
+      const { status, detail, code } = await mpesaStatus(paymentId);
       if (status === "completed") {
         window.clearInterval(pollRef.current!);
         setState("done");
@@ -195,7 +195,7 @@ function MpesaDeposit({
         setState("failed");
         setMessage(
           status === "failed"
-            ? `Payment didn't go through${detail ? `: ${humanizeMpesa(detail)}` : "."}`
+            ? `Payment didn't go through${detail ? `: ${humanizeMpesa(detail, code)}` : "."}${code ? ` (M-Pesa code ${code})` : ""}`
             : "Still confirming — if money left your phone, it will reflect shortly. Refresh in a moment.",
         );
       }
@@ -339,8 +339,23 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-/** Turn Safaricom's raw result text into something a customer understands. */
-function humanizeMpesa(detail: string): string {
+/** Turn Safaricom's raw result text (and code) into something a customer understands. */
+function humanizeMpesa(detail: string, code?: string): string {
+  // Map on the ResultCode first — it's unambiguous.
+  switch (code) {
+    case "1032":
+      return "you cancelled the prompt on your phone.";
+    case "1037":
+      return "the prompt timed out — no PIN was entered. Please try again.";
+    case "1":
+      return "insufficient M-Pesa balance.";
+    case "2001":
+      return "the PIN entered was incorrect.";
+    case "1019":
+      return "the request expired before it was completed. Please try again.";
+    case "1001":
+      return "another M-Pesa transaction is already in progress on that line — wait a moment and retry.";
+  }
   const d = detail.toLowerCase();
   if (d.includes("cancel")) return "you cancelled the prompt on your phone.";
   if (d.includes("timeout") || d.includes("cannot be reached"))

@@ -97,6 +97,8 @@ export type MpesaStatus = {
   status: "completed" | "failed" | "pending";
   /** Safaricom's own reason on failure (e.g. "Request cancelled by user"). */
   detail?: string;
+  /** Safaricom ResultCode on failure (e.g. "1032"). */
+  code?: string;
 };
 
 /** Ask the server to reconcile a pending M-Pesa deposit against Safaricom. */
@@ -109,7 +111,7 @@ export async function mpesaStatus(paymentId: string): Promise<MpesaStatus> {
     });
     if (!res.ok) return { status: "pending" };
     const data = await res.json();
-    return { status: data.status ?? "pending", detail: data.detail };
+    return { status: data.status ?? "pending", detail: data.detail, code: data.code };
   } catch {
     return { status: "pending" };
   }

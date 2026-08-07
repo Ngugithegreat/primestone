@@ -44,11 +44,16 @@ export async function POST(req: Request) {
   }
 
   if (q.status === "failed") {
+    console.error("[mpesa/status] failed", {
+      paymentId: payment.id,
+      code: q.resultCode,
+      desc: q.resultDesc,
+    });
     await db
       .update(payments)
       .set({ status: "failed", updatedAt: new Date() })
       .where(eq(payments.id, payment.id));
-    return NextResponse.json({ status: "failed", detail: q.resultDesc });
+    return NextResponse.json({ status: "failed", detail: q.resultDesc, code: q.resultCode });
   }
 
   return NextResponse.json({ status: "pending" });
