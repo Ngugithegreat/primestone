@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  ShieldCheck,
   Smartphone,
   TrendingUp,
   Wallet as WalletIcon,
@@ -62,6 +63,10 @@ export function RealWallet() {
   }
 
   const balanceMinor = account?.balanceMinor ?? 0;
+  const copyingMinor = (account?.allocations ?? [])
+    .filter((a) => a.status !== "closed")
+    .reduce((s, a) => s + (a.valueMinor ?? a.amountMinor), 0);
+  const totalMinor = balanceMinor + copyingMinor;
 
   return (
     <div className="space-y-6">
@@ -82,10 +87,10 @@ export function RealWallet() {
           <div className="relative flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-[12px] uppercase tracking-[0.14em] text-slate-500">
-                Available balance
+                Total account value
               </p>
               <p className="mt-1.5 font-display text-[34px] font-bold leading-none text-white">
-                {usd(balanceMinor)}
+                {usd(totalMinor)}
               </p>
               <p className="mt-2 text-[12.5px] text-slate-500">
                 {user?.firstName ? `${user.firstName}'s account` : "Your account"} · real funds
@@ -94,6 +99,20 @@ export function RealWallet() {
             <Badge tone="mint" dot>
               Live balance
             </Badge>
+          </div>
+
+          {/* Available / Copying breakdown */}
+          <div className="relative mt-5 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.1em] text-slate-500">Available</p>
+              <p className="tnum mt-1 text-[17px] font-semibold text-white">{usd(balanceMinor)}</p>
+              <p className="text-[11px] text-slate-500">ready to deposit or copy</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.1em] text-slate-500">Copying</p>
+              <p className="tnum mt-1 text-[17px] font-semibold text-mint-400">{usd(copyingMinor)}</p>
+              <p className="text-[11px] text-slate-500">working with providers</p>
+            </div>
           </div>
         </div>
       </Card>
@@ -165,7 +184,7 @@ function MpesaDeposit({
     let ticks = 0;
     pollRef.current = window.setInterval(async () => {
       ticks++;
-      const status = await mpesaStatus(paymentId);
+      const { status, detail } = await mpesaStatus(paymentId);
       if (status === "completed") {
         window.clearInterval(pollRef.current!);
         setState("done");
@@ -176,7 +195,7 @@ function MpesaDeposit({
         setState("failed");
         setMessage(
           status === "failed"
-            ? "The payment was cancelled or failed."
+            ? `Payment didn't go through${detail ? `: ${humanizeMpesa(detail)}` : "."}`
             : "Still confirming — if money left your phone, it will reflect shortly. Refresh in a moment.",
         );
       }
@@ -294,10 +313,42 @@ function MpesaDeposit({
                 ? "Sending prompt…"
                 : `Deposit $${amount.toLocaleString()}`}
           </Button>
+
+          <div className="flex items-center justify-center gap-1.5 pt-0.5 text-[11px] text-slate-600">
+            <ShieldCheck className="h-3.5 w-3.5 text-mint-500/70" />
+            Secured by Safaricom M-Pesa · funds credited instantly on confirmation
+          </div>
         </div>
       )}
     </Card>
   );
+}
+
+/** Compact relative time (e.g. "3h ago", "just now"). */
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** Turn Safaricom's raw result text into something a customer understands. */
+function humanizeMpesa(detail: string): string {
+  const d = detail.toLowerCase();
+  if (d.includes("cancel")) return "you cancelled the prompt on your phone.";
+  if (d.includes("timeout") || d.includes("cannot be reached"))
+    return "the prompt timed out — no PIN was entered. Please try again.";
+  if (d.includes("insufficient")) return "insufficient M-Pesa balance.";
+  if (d.includes("wrong") && d.includes("pin")) return "the PIN entered was incorrect.";
+  if (d.includes("limit")) return "the amount exceeds your M-Pesa transaction limit.";
+  return detail;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -526,9 +577,7 @@ function History({ account }: { account: AccountSnapshot | null }) {
                 <p className="text-[13px] font-medium capitalize text-white">
                   {p.kind} · {p.provider}
                 </p>
-                <p className="text-[11px] text-slate-500">
-                  {new Date(p.createdAt).toLocaleString("en-KE")}
-                </p>
+                <p className="text-[11px] text-slate-500">{timeAgo(p.createdAt)}</p>
               </div>
             </div>
             <div className="text-right">

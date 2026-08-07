@@ -49,20 +49,27 @@ export async function POST(req: Request) {
 
   const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5);
   try {
+    // Stored PRIVATE — identity documents must not be readable by URL. They are
+    // served only to admin reviewers through /api/admin/kyc/doc. We persist the
+    // pathname (not a URL), which that proxy reads back with the store token.
     const blob = await put(`kyc/${user.id}/${docType}.${ext}`, file, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
       contentType: file.type || undefined,
     });
     return NextResponse.json({
       ok: true,
-      storageKey: blob.url,
+      storageKey: blob.pathname,
       fileName: file.name,
       fileSize: file.size,
       contentType: file.type || "application/octet-stream",
     });
   } catch (err) {
-    console.error("[kyc/upload] failed:", err);
-    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 502 });
+    const detail = err instanceof Error ? err.message : "Unknown storage error";
+    console.error("[kyc/upload] failed:", detail);
+    return NextResponse.json(
+      { error: "Upload failed. Please try again.", detail },
+      { status: 502 },
+    );
   }
 }

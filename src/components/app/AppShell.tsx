@@ -418,13 +418,6 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
                     <Settings className="h-4 w-4" />
                     Account settings
                   </Link>
-                  <Link
-                    href="/admin"
-                    className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13.5px] text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white"
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    Admin console
-                  </Link>
                   <button
                     onClick={() => {
                       // Clear the server session (best-effort) then local state.

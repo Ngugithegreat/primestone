@@ -385,7 +385,10 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
                 ) : (
                   <div className="grid grid-cols-2 gap-2.5">
                     {user.kyc.documents.map((d) => {
-                      const url = d.storageKey?.startsWith("http") ? d.storageKey : null;
+                      // Private blobs are served only via the admin proxy.
+                      const url = d.storageKey
+                        ? `/api/admin/kyc/doc?path=${encodeURIComponent(d.storageKey)}`
+                        : null;
                       const isImage =
                         url != null &&
                         (d.contentType?.startsWith("image/") ||
