@@ -1,101 +1,116 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, PiggyBank, ShieldCheck, TrendingUp, Users, Wallet } from "lucide-react";
-import { StatTile } from "./StatTile";
+import { motion } from "framer-motion";
+import { ArrowRight, ShieldCheck, TrendingUp, Users, Wallet } from "lucide-react";
 import { LiveCopiedTrades } from "./LiveCopiedTrades";
 import { ButtonLink } from "@/components/ui/Button";
-import { Badge, Card } from "@/components/ui/Primitives";
+import { Card, LiveDot } from "@/components/ui/Primitives";
 import { usd } from "@/lib/accountClient";
 import { useRealAccount } from "@/lib/useRealAccount";
 import { useStore } from "@/lib/store";
-import { initialsOf } from "@/lib/utils";
+import { cn, initialsOf } from "@/lib/utils";
 
-/** The dashboard for a real, funded (live) account — real KES money only. */
+/** The dashboard for a real, funded (live) account — real USD money only. */
 export function LiveOverview() {
   const user = useStore((s) => s.user);
   const real = useRealAccount();
   const kyc = useStore((s) => s.kyc.status);
 
   const subs = (real.account?.allocations ?? []).filter((a) => a.status !== "closed");
-  const g = greeting();
+  const realized = real.realizedPnlMinor;
+
+  const identity =
+    kyc === "verified"
+      ? { label: "Verified", dot: "bg-mint-500", sub: "Withdrawals enabled" }
+      : kyc === "pending"
+        ? { label: "Under review", dot: "bg-amber-450", sub: "Usually within hours" }
+        : { label: "Not verified", dot: "bg-slate-500", sub: "Required to withdraw" };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-display text-[26px] font-bold leading-tight text-white">
-              {g}, {user?.firstName}
-            </h1>
-            <Badge tone="mint" dot>
-              Live account
-            </Badge>
-          </div>
-          <p className="mt-1 text-[14px] text-slate-400">
-            {subs.length > 0
-              ? `You are copying ${subs.length} strategy ${subs.length === 1 ? "provider" : "providers"}.`
-              : "Your funds are ready — assign them to a strategy provider to start copying."}
-          </p>
-        </div>
-        <div className="flex gap-2.5">
-          <ButtonLink href="/wallet" variant="secondary" size="sm">
-            <Wallet className="h-4 w-4" />
-            Deposit
-          </ButtonLink>
-          <ButtonLink href="/wallet" size="sm">
-            <Users className="h-4 w-4" />
-            Copy a provider
-          </ButtonLink>
-        </div>
-      </div>
+      {/* Hero — total value */}
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <Card className="card-sheen overflow-hidden p-0">
+          <div className="relative p-6 sm:p-7">
+            <div
+              className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full blur-[90px]"
+              style={{ background: "radial-gradient(closest-side, rgba(0,223,164,0.20), transparent 70%)" }}
+            />
+            <div
+              className="pointer-events-none absolute -left-20 bottom-[-40%] h-64 w-64 rounded-full blur-[90px] opacity-70"
+              style={{ background: "radial-gradient(closest-side, rgba(99,102,241,0.16), transparent 70%)" }}
+            />
 
-      {/* Real money tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          index={0}
-          label="Account value"
-          value={usd(real.totalMinor)}
-          icon={Wallet}
-          accent="#00dfa4"
-          delta={{ value: "Real funds", positive: true }}
-        />
-        <StatTile
-          index={1}
-          label="Available to allocate"
-          value={usd(real.balanceMinor)}
-          icon={PiggyBank}
-          accent="#2ff0bd"
-          footer="Not yet assigned"
-        />
-        <StatTile
-          index={2}
-          label="Copying"
-          value={usd(real.allocatedMinor)}
-          icon={TrendingUp}
-          accent="#818cf8"
-          delta={
-            real.realizedPnlMinor !== 0
-              ? {
-                  value: `${real.realizedPnlMinor > 0 ? "+" : "-"}${usd(Math.abs(real.realizedPnlMinor))} realized`,
-                  positive: real.realizedPnlMinor >= 0,
-                }
-              : undefined
-          }
-          footer={`${subs.length} active subscription${subs.length === 1 ? "" : "s"}`}
-        />
-        <StatTile
-          index={3}
-          label="Identity"
-          value={
-            kyc === "verified" ? "Verified" : kyc === "pending" ? "Under review" : "Not verified"
-          }
-          icon={ShieldCheck}
-          accent={kyc === "verified" ? "#00dfa4" : kyc === "pending" ? "#fbbf24" : "#64748b"}
-          footer={kyc === "verified" ? "Withdrawals enabled" : "Required to withdraw"}
-        />
-      </div>
+            <div className="relative flex flex-wrap items-start justify-between gap-5">
+              <div className="min-w-0">
+                <p className="text-[13px] text-slate-400">
+                  {greeting()}, <span className="font-medium text-slate-200">{user?.firstName}</span>
+                </p>
+                <div className="mt-2.5 flex items-center gap-2.5">
+                  <p className="text-[11.5px] uppercase tracking-[0.14em] text-slate-500">
+                    Total account value
+                  </p>
+                  <LiveDot />
+                </div>
+                <p className="tnum mt-1.5 font-display text-[clamp(2rem,5vw,2.75rem)] font-bold leading-none text-white">
+                  {usd(real.totalMinor)}
+                </p>
+                {realized !== 0 && (
+                  <span
+                    className={cn(
+                      "mt-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold",
+                      realized >= 0
+                        ? "border-mint-500/25 bg-mint-500/10 text-mint-400"
+                        : "border-rose-500/25 bg-rose-500/10 text-rose-400",
+                    )}
+                  >
+                    <TrendingUp className="h-3 w-3" />
+                    {realized >= 0 ? "+" : "-"}
+                    {usd(Math.abs(realized))} realized all-time
+                  </span>
+                )}
+              </div>
+
+              <div className="flex shrink-0 gap-2.5">
+                <ButtonLink href="/wallet" variant="secondary" size="sm">
+                  <Wallet className="h-4 w-4" />
+                  Deposit
+                </ButtonLink>
+                <ButtonLink href="/wallet" size="sm">
+                  <Users className="h-4 w-4" />
+                  Copy a provider
+                </ButtonLink>
+              </div>
+            </div>
+
+            {/* Breakdown */}
+            <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-white/[0.06] pt-5 sm:grid-cols-3">
+              <MiniStat
+                label="Available"
+                value={usd(real.balanceMinor)}
+                sub="ready to allocate"
+              />
+              <MiniStat
+                label="Copying"
+                value={usd(real.allocatedMinor)}
+                valueClass="text-mint-400"
+                sub={`${subs.length} provider${subs.length === 1 ? "" : "s"}`}
+              />
+              <MiniStat
+                label="Identity"
+                value={identity.label}
+                sub={identity.sub}
+                dot={identity.dot}
+              />
+            </div>
+          </div>
+        </Card>
+      </motion.div>
 
       {/* Live copied trades (marks against real prices) */}
       <LiveCopiedTrades positions={real.openPositions} />
@@ -111,7 +126,9 @@ export function LiveOverview() {
 
         {subs.length === 0 ? (
           <div className="mt-4 grid place-items-center rounded-xl border border-white/[0.07] bg-white/[0.02] px-6 py-12 text-center">
-            <Users className="h-8 w-8 text-slate-600" />
+            <span className="grid h-12 w-12 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.03]">
+              <Users className="h-6 w-6 text-slate-500" />
+            </span>
             <p className="mt-3 text-[14px] font-medium text-white">No subscriptions yet</p>
             <p className="mt-1 max-w-sm text-[13px] text-slate-400">
               Assign your {usd(real.balanceMinor)} to a provider and their trades mirror into
@@ -124,40 +141,46 @@ export function LiveOverview() {
           </div>
         ) : (
           <div className="mt-4 space-y-2.5">
-            {subs.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink-950"
-                    style={{ background: "linear-gradient(140deg,#2ff0bd,#6366f1)" }}
-                  >
-                    {initialsOf(a.provider.name)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[13.5px] font-medium text-white">
-                      {a.provider.name}
-                    </p>
-                    <p className="truncate text-[11.5px] text-slate-500">{a.provider.strategy}</p>
+            {subs.map((a) => {
+              const pnl = a.valueMinor - a.amountMinor;
+              return (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5 transition-colors hover:border-white/[0.12] hover:bg-white/[0.03]"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink-950"
+                      style={{ background: "linear-gradient(140deg,#2ff0bd,#6366f1)" }}
+                    >
+                      {initialsOf(a.provider.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13.5px] font-medium text-white">
+                        {a.provider.name}
+                      </p>
+                      <p className="truncate text-[11.5px] text-slate-500">{a.provider.strategy}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.valueMinor)}</p>
+                    {pnl !== 0 ? (
+                      <p
+                        className={cn(
+                          "tnum text-[11.5px]",
+                          pnl >= 0 ? "text-mint-400" : "text-rose-400",
+                        )}
+                      >
+                        {pnl >= 0 ? "+" : "-"}
+                        {usd(Math.abs(pnl))} P&L
+                      </p>
+                    ) : (
+                      <p className="tnum text-[11.5px] text-slate-500">{usd(a.amountMinor)} in</p>
+                    )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.valueMinor)}</p>
-                  {a.valueMinor !== a.amountMinor ? (
-                    <p
-                      className={`tnum text-[11.5px] ${a.valueMinor >= a.amountMinor ? "text-mint-400" : "text-rose-400"}`}
-                    >
-                      {a.valueMinor >= a.amountMinor ? "+" : "-"}
-                      {usd(Math.abs(a.valueMinor - a.amountMinor))} P&L
-                    </p>
-                  ) : (
-                    <p className="tnum text-[11.5px] text-slate-500">{usd(a.amountMinor)} in</p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -168,6 +191,33 @@ export function LiveOverview() {
           Trading desk
         </Link>{" "}
         is a separate demo account on live charts.
+      </p>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  sub,
+  valueClass,
+  dot,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  valueClass?: string;
+  dot?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      <p className={cn("tnum mt-1 truncate text-[18px] font-semibold text-white", valueClass)}>
+        {value}
+      </p>
+      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+        {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />}
+        {sub}
       </p>
     </div>
   );
