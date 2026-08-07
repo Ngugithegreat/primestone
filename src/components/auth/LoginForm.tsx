@@ -2,20 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Fingerprint } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthLayout } from "./AuthLayout";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
-import { useHydrated, useStore } from "@/lib/store";
-import { apiLogin } from "@/lib/authClient";
+import { useStore } from "@/lib/store";
+import { apiLogin, apiMe } from "@/lib/authClient";
 import type { AccountTypeId } from "@/lib/accounts";
 
 export function LoginForm() {
   const router = useRouter();
-  const hydrated = useHydrated();
-  const user = useStore((s) => s.user);
-  const signIn = useStore((s) => s.signIn);
   const signInReal = useStore((s) => s.signInReal);
   const pushToast = useStore((s) => s.pushToast);
 
@@ -24,10 +21,30 @@ export function LoginForm() {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  // An existing session skips the form entirely.
+  // Skip the form ONLY if the server confirms a live session cookie — never
+  // based on client-side/localStorage state. A logged-out visitor always has
+  // to enter their password here.
   useEffect(() => {
-    if (hydrated && user) router.replace("/dashboard");
-  }, [hydrated, user, router]);
+    let cancelled = false;
+    (async () => {
+      const { user: serverUser } = await apiMe();
+      if (cancelled || !serverUser) return;
+      signInReal({
+        firstName: serverUser.firstName,
+        lastName: serverUser.lastName,
+        email: serverUser.email,
+        phone: serverUser.phone,
+        country: serverUser.country,
+        accountType: (serverUser.accountType as AccountTypeId) ?? "standard",
+        leverage: serverUser.leverage,
+        kycVerified: serverUser.kycStatusCache === "verified",
+      });
+      router.replace("/dashboard");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, signInReal]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,29 +128,6 @@ export function LoginForm() {
           {busy ? "Signing in…" : "Sign in"}
           {!busy && <ArrowRight className="h-4 w-4" />}
         </Button>
-
-        <div className="flex items-center gap-3 py-1">
-          <span className="h-px flex-1 bg-white/[0.08]" />
-          <span className="text-[11.5px] uppercase tracking-[0.14em] text-slate-600">or</span>
-          <span className="h-px flex-1 bg-white/[0.08]" />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            signIn("demo@primestone.com");
-            pushToast({
-              tone: "info",
-              title: "Demo session started",
-              body: "A funded demo account has been loaded for you.",
-            });
-            router.push("/dashboard");
-          }}
-          className="focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-[14px] font-medium text-white transition-colors hover:bg-white/[0.09]"
-        >
-          <Fingerprint className="h-4 w-4 text-mint-400" />
-          Continue with a demo account
-        </button>
 
         <p className="pt-1 text-center text-[12px] leading-relaxed text-slate-500">
           Protected by 256-bit encryption. Enable two-factor authentication in settings

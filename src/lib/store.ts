@@ -692,10 +692,17 @@ export const useStore = create<Store>()(
       },
     }),
     {
-      name: "primestone.session.v1",
+      // v2: dropped `user`/`sessionMode` from persistence (auth is now
+      // server-cookie only). New key so stale v1 blobs — which still hold a
+      // `user` — are abandoned rather than rehydrated into a password-less login.
+      name: "primestone.session.v2",
       storage: createJSONStorage(() => localStorage),
+      // NB: `user` and `sessionMode` are deliberately NOT persisted. Who is
+      // signed in is decided ONLY by the httpOnly server session cookie
+      // (validated via /api/auth/me on load), never by localStorage — otherwise
+      // a stale browser could "log in" with no password and no valid session.
+      // The rest is demo/practice-desk state, safe to keep across reloads.
       partialize: (s) => ({
-        user: s.user,
         balance: s.balance,
         demoCredit: s.demoCredit,
         positions: s.positions,
@@ -703,8 +710,6 @@ export const useStore = create<Store>()(
         copies: s.copies,
         txns: s.txns,
         watchlist: s.watchlist,
-        kyc: s.kyc,
-        sessionMode: s.sessionMode,
       }),
     },
   ),
