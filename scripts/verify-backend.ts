@@ -35,6 +35,11 @@ import { confirmDeposit, initiateDeposit, requestWithdrawal } from "../src/serve
 import { submitKyc, reviewKyc } from "../src/server/kyc";
 import { createProvider } from "../src/server/providers";
 import { allocate, deallocate, listAllocations } from "../src/server/allocations";
+import {
+  activeAllocationValues,
+  closeProviderPosition,
+  openProviderPosition,
+} from "../src/server/copyEngine";
 import { ledgerEntries } from "../src/db/schema";
 
 let pass = 0;
@@ -242,6 +247,89 @@ async function main() {
   cash = await clientCashBalance(db, userId);
   check("cash back to $350.00 after deallocation", cash === toMinor(350), `(got ${toMajor(cash)})`);
   await assertLedgerBalanced(db, "after deallocation");
+
+  /* --- Copy-trade engine (settlement) ----------------------------------- */
+  console.log("\nCopy-trade engine");
+  process.env.COPY_SETTLEMENT = "live";
+
+  // Cash is $350 after deallocation; commit $200 to copy.
+  const alloc2 = await allocate(db, { userId, providerId, amount: 200 });
+  check("re-allocate $200 for copy test", alloc2.ok);
+
+  // A winning BUY: entry 100 → exit 110 on 50% of the $200 allocation = $100
+  // stake → +$10 gross, 20% fee = $2, so +$8 net to the client.
+  const openWin = await openProviderPosition(db, {
+    providerId,
+    symbol: "BTCUSD",
+    side: "buy",
+    price: 100,
+    sizePct: 0.5,
+  });
+  check("provider position opened + mirrored to 1 allocation", openWin.ok && openWin.mirrors === 1);
+  const closeWin = await closeProviderPosition(db, {
+    positionId: openWin.ok ? openWin.positionId : "",
+    exitPrice: 110,
+    reason: "test",
+  });
+  check(
+    "winning trade: net +$8.00 after 20% fee ($2.00)",
+    closeWin.ok && closeWin.netPnlMinor === toMinor(8) && closeWin.feeMinor === toMinor(2),
+    closeWin.ok ? `(net ${closeWin.netPnlMinor}, fee ${closeWin.feeMinor})` : "",
+  );
+  const av1 = await activeAllocationValues(db, userId);
+  check("profit credited: allocation now $208.00", av1.totalMinor === toMinor(208), `(got ${toMajor(av1.totalMinor)})`);
+  const pnlBal = await balanceOf(db, await ensureSystemAccount(db, "system_pnl"));
+  const feeBal = await balanceOf(db, await ensureSystemAccount(db, "system_fees"));
+  check("house P&L account paid the gross (-$10.00)", pnlBal === -toMinor(10), `(got ${toMajor(pnlBal)})`);
+  check("fees account earned $2.00", feeBal === toMinor(2), `(got ${toMajor(feeBal)})`);
+  await assertLedgerBalanced(db, "after winning copy trade");
+
+  // A catastrophic SELL: price triples against it — loss is clamped so a single
+  // position can never lose more than its $100 stake.
+  const openLoss = await openProviderPosition(db, {
+    providerId,
+    symbol: "BTCUSD",
+    side: "sell",
+    price: 100,
+    sizePct: 0.5,
+  });
+  const closeLoss = await closeProviderPosition(db, {
+    positionId: openLoss.ok ? openLoss.positionId : "",
+    exitPrice: 300,
+    reason: "test",
+  });
+  check(
+    "losing trade clamped to the stake (-$100.00)",
+    closeLoss.ok && closeLoss.netPnlMinor === -toMinor(100),
+    closeLoss.ok ? `(got ${closeLoss.netPnlMinor})` : "",
+  );
+  const av2 = await activeAllocationValues(db, userId);
+  check("loss debited: allocation now $108.00", av2.totalMinor === toMinor(108), `(got ${toMajor(av2.totalMinor)})`);
+  await assertLedgerBalanced(db, "after losing copy trade");
+
+  // Paper mode must move NO real money.
+  process.env.COPY_SETTLEMENT = "paper";
+  const beforePaper = (await activeAllocationValues(db, userId)).totalMinor;
+  const openPaper = await openProviderPosition(db, {
+    providerId,
+    symbol: "BTCUSD",
+    side: "buy",
+    price: 100,
+    sizePct: 0.5,
+  });
+  const closePaper = await closeProviderPosition(db, {
+    positionId: openPaper.ok ? openPaper.positionId : "",
+    exitPrice: 150,
+    reason: "test",
+  });
+  check("paper-mode close succeeds", closePaper.ok);
+  const afterPaper = (await activeAllocationValues(db, userId)).totalMinor;
+  check(
+    "paper mode leaves real balances untouched",
+    afterPaper === beforePaper,
+    `(before ${beforePaper}, after ${afterPaper})`,
+  );
+  await assertLedgerBalanced(db, "after paper trade");
 
   /* --- Summary ---------------------------------------------------------- */
   console.log(`\n${pass} passed, ${fail} failed\n`);

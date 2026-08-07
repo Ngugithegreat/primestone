@@ -74,6 +74,8 @@ export const allocationStatus = pgEnum("allocation_status", [
   "paused",
   "closed",
 ]);
+export const positionSide = pgEnum("position_side", ["buy", "sell"]);
+export const positionStatus = pgEnum("position_status", ["open", "closed"]);
 
 /* -------------------------------------------------------------------------- */
 /*  Identity                                                                   */
@@ -330,6 +332,83 @@ export const allocations = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/*  Copy trading — provider positions and their per-allocation mirrors         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A position opened by a signal provider. This is the SIGNAL: symbol, side,
+ * the real entry price it was opened at, and `sizePct` — the fraction of each
+ * subscriber's allocation this position commits. When it closes at a real exit
+ * price, every mirror settles against the ledger.
+ *
+ * Prices are stored as decimal strings (numeric) because instruments span many
+ * orders of magnitude (JPY pairs to Bitcoin); money still settles as integer
+ * USD minor units in the ledger.
+ */
+export const providerPositions = pgTable(
+  "provider_positions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => signalProviders.id, { onDelete: "restrict" }),
+    symbol: text("symbol").notNull(),
+    side: positionSide("side").notNull(),
+    entryPrice: numeric("entry_price", { precision: 20, scale: 8 }).notNull(),
+    // Fraction of each subscriber's allocation committed (e.g. 0.05 = 5%).
+    sizePct: numeric("size_pct", { precision: 6, scale: 4 }).notNull(),
+    // Stop-loss / take-profit as a fraction of the entry price (e.g. 0.015 = 1.5%).
+    stopLossPct: numeric("stop_loss_pct", { precision: 6, scale: 4 }),
+    takeProfitPct: numeric("take_profit_pct", { precision: 6, scale: 4 }),
+    status: positionStatus("status").notNull().default("open"),
+    exitPrice: numeric("exit_price", { precision: 20, scale: 8 }),
+    closeReason: text("close_reason"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("provider_positions_provider_idx").on(t.providerId, t.status),
+    index("provider_positions_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * One subscriber's mirror of a provider position, sized to their allocation.
+ * `stakeMinor` is the USD (minor units) put behind this trade. Realized P&L is
+ * `stakeMinor * (exit-entry)/entry * direction`, clamped so a single position
+ * can never lose more than its stake.
+ */
+export const copyPositions = pgTable(
+  "copy_positions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    providerPositionId: uuid("provider_position_id")
+      .notNull()
+      .references(() => providerPositions.id, { onDelete: "restrict" }),
+    allocationId: uuid("allocation_id")
+      .notNull()
+      .references(() => allocations.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    symbol: text("symbol").notNull(),
+    side: positionSide("side").notNull(),
+    entryPrice: numeric("entry_price", { precision: 20, scale: 8 }).notNull(),
+    stakeMinor: bigint("stake_minor", { mode: "number" }).notNull(),
+    status: positionStatus("status").notNull().default("open"),
+    exitPrice: numeric("exit_price", { precision: 20, scale: 8 }),
+    realizedPnl: bigint("realized_pnl", { mode: "number" }).notNull().default(0),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("copy_positions_user_idx").on(t.userId, t.status),
+    index("copy_positions_alloc_idx").on(t.allocationId),
+    index("copy_positions_provider_pos_idx").on(t.providerPositionId),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /*  Audit log — who did what, for compliance                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -352,3 +431,5 @@ export type NewUserRow = typeof users.$inferInsert;
 export type SignalProviderRow = typeof signalProviders.$inferSelect;
 export type AllocationRow = typeof allocations.$inferSelect;
 export type PaymentRow = typeof payments.$inferSelect;
+export type ProviderPositionRow = typeof providerPositions.$inferSelect;
+export type CopyPositionRow = typeof copyPositions.$inferSelect;

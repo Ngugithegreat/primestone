@@ -19,7 +19,8 @@ export type RealProvider = {
 
 export type RealAllocation = {
   id: string;
-  amountMinor: number;
+  amountMinor: number; // committed principal
+  valueMinor: number; // live value: principal + settled P&L
   status: "active" | "paused" | "closed";
   riskMultiplier: string;
   startedAt: string;
@@ -38,12 +39,25 @@ export type RealPayment = {
   createdAt: string;
 };
 
+export type RealOpenPosition = {
+  id: string;
+  symbol: string;
+  label: string;
+  side: "buy" | "sell";
+  entryPrice: number;
+  stakeMinor: number;
+  provider: string;
+  openedAt: string;
+};
+
 export type AccountSnapshot = {
   currency: string;
   balanceMinor: number;
   kycStatus: string;
   allocations: RealAllocation[];
   payments: RealPayment[];
+  realizedPnlMinor: number;
+  openPositions: RealOpenPosition[];
 };
 
 export async function getAccount(): Promise<AccountSnapshot | null> {
@@ -141,4 +155,33 @@ export async function getUsdKesRate(): Promise<number> {
   } catch {
     return 129;
   }
+}
+
+/** Real, live quotes for the given instruments (for marking open positions). */
+export async function getQuotes(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) return {};
+  try {
+    const q = encodeURIComponent(symbols.join(","));
+    const res = await fetch(`/api/market/quotes?symbols=${q}`, { cache: "no-store" });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return (data.quotes ?? {}) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Unrealized P&L on an open copied position at a live price, in USD minor units.
+ * Mirrors the server's `positionPnl`: return on the staked amount, clamped so a
+ * position can't show a loss deeper than its stake.
+ */
+export function unrealizedPnlMinor(
+  pos: RealOpenPosition,
+  price: number | undefined,
+): number | null {
+  if (price == null || !(pos.entryPrice > 0)) return null;
+  const dir = pos.side === "buy" ? 1 : -1;
+  const raw = Math.round(pos.stakeMinor * ((price - pos.entryPrice) / pos.entryPrice) * dir);
+  return Math.max(raw, -pos.stakeMinor);
 }

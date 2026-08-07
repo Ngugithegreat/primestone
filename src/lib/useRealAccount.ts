@@ -45,12 +45,15 @@ export function useRealAccount(pollMs = 20000) {
   }, [isReal, pollMs]);
 
   const balanceMinor = account?.balanceMinor ?? 0;
+  // Live allocated value = principal + settled P&L (falls back to principal).
   const allocatedMinor = (account?.allocations ?? [])
     .filter((a) => a.status !== "closed")
-    .reduce((s, a) => s + a.amountMinor, 0);
+    .reduce((s, a) => s + (a.valueMinor ?? a.amountMinor), 0);
   const hasDeposited = (account?.payments ?? []).some(
     (p) => p.kind === "deposit" && p.status === "completed",
   );
+  const openPositions = account?.openPositions ?? [];
+  const realizedPnlMinor = account?.realizedPnlMinor ?? 0;
 
   return {
     isReal,
@@ -59,6 +62,8 @@ export function useRealAccount(pollMs = 20000) {
     balanceMinor,
     allocatedMinor,
     totalMinor: balanceMinor + allocatedMinor,
+    openPositions,
+    realizedPnlMinor,
     hasDeposited,
     // "Live" once real money has landed; before that it's a funded practice account.
     isLive: isReal && (hasDeposited || balanceMinor > 0 || allocatedMinor > 0),

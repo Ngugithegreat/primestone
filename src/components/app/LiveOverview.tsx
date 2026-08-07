@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, PiggyBank, ShieldCheck, TrendingUp, Users, Wallet } from "lucide-react";
 import { StatTile } from "./StatTile";
+import { LiveCopiedTrades } from "./LiveCopiedTrades";
 import { ButtonLink } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Primitives";
 import { usd } from "@/lib/accountClient";
@@ -74,6 +75,14 @@ export function LiveOverview() {
           value={usd(real.allocatedMinor)}
           icon={TrendingUp}
           accent="#818cf8"
+          delta={
+            real.realizedPnlMinor !== 0
+              ? {
+                  value: `${real.realizedPnlMinor > 0 ? "+" : "-"}${usd(Math.abs(real.realizedPnlMinor))} realized`,
+                  positive: real.realizedPnlMinor >= 0,
+                }
+              : undefined
+          }
           footer={`${subs.length} active subscription${subs.length === 1 ? "" : "s"}`}
         />
         <StatTile
@@ -87,6 +96,9 @@ export function LiveOverview() {
           footer={kyc === "verified" ? "Withdrawals enabled" : "Required to withdraw"}
         />
       </div>
+
+      {/* Live copied trades (marks against real prices) */}
+      <LiveCopiedTrades positions={real.openPositions} />
 
       {/* Subscriptions */}
       <Card className="p-6">
@@ -132,10 +144,17 @@ export function LiveOverview() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.amountMinor)}</p>
-                  <p className="tnum text-[11.5px] text-mint-400">
-                    +{Number(a.provider.roi12m).toFixed(1)}% 12M
-                  </p>
+                  <p className="tnum text-[13.5px] font-semibold text-white">{usd(a.valueMinor)}</p>
+                  {a.valueMinor !== a.amountMinor ? (
+                    <p
+                      className={`tnum text-[11.5px] ${a.valueMinor >= a.amountMinor ? "text-mint-400" : "text-rose-400"}`}
+                    >
+                      {a.valueMinor >= a.amountMinor ? "+" : "-"}
+                      {usd(Math.abs(a.valueMinor - a.amountMinor))} P&L
+                    </p>
+                  ) : (
+                    <p className="tnum text-[11.5px] text-slate-500">{usd(a.amountMinor)} in</p>
+                  )}
                 </div>
               </div>
             ))}
