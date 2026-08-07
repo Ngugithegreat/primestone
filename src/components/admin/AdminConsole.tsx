@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   Ban,
   Check,
   Clock,
@@ -25,6 +26,7 @@ import { Badge } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn, initialsOf } from "@/lib/utils";
+import { EngineMonitor } from "./EngineMonitor";
 
 /* -------------------------------------------------------------------------- */
 /*  Types + helpers                                                            */
@@ -101,6 +103,7 @@ export function AdminConsole() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<KycStatus | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<"users" | "engine">("users");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/users", { cache: "no-store" });
@@ -179,6 +182,30 @@ export function AdminConsole() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+        {/* Tabs */}
+        <div className="mb-5 inline-flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+          {([
+            { id: "users", label: "Users", icon: Users2 },
+            { id: "engine", label: "Copy engine", icon: Activity },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setView(t.id)}
+              className={cn(
+                "focus-ring inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+                view === t.id ? "bg-white/[0.10] text-white" : "text-slate-400 hover:text-slate-200",
+              )}
+            >
+              <t.icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {view === "engine" ? (
+          <EngineMonitor />
+        ) : (
+          <>
         <h1 className="font-display text-[24px] font-bold text-white">User management</h1>
         <p className="mt-1 text-[14px] text-slate-400">
           Every registered account with live figures. Review identity submissions here.
@@ -274,6 +301,8 @@ export function AdminConsole() {
           )}
         </div>
         <p className="mt-3 text-[12px] text-slate-600">Showing {results.length} of {users.length} accounts.</p>
+          </>
+        )}
       </main>
 
       <AnimatePresence>

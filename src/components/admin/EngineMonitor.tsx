@@ -1,0 +1,464 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Activity, Loader2, Play, Plus, TrendingUp, Users2, Wallet, X } from "lucide-react";
+import { Badge } from "@/components/ui/Primitives";
+import { Button } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Field";
+import { cn } from "@/lib/utils";
+
+/* -------------------------------------------------------------------------- */
+
+type Position = {
+  id: string;
+  provider: string;
+  symbol: string;
+  side: "buy" | "sell";
+  entryPrice: number;
+  currentPrice: number | null;
+  sizePct: number;
+  mirrors: number;
+  stakedMinor: number;
+  unrealizedMinor: number | null;
+  openedAt: string;
+};
+
+type EngineData = {
+  mode: "live" | "paper";
+  providers: { id: string; name: string }[];
+  symbols: string[];
+  quotes: Record<string, number>;
+  positions: Position[];
+  summary: {
+    openPositions: number;
+    openMirrors: number;
+    copiers: number;
+    stakedMinor: number;
+    unrealizedMinor: number;
+    realizedMinor: number;
+  };
+  recentClosed: {
+    id: string;
+    provider: string;
+    symbol: string;
+    side: "buy" | "sell";
+    entryPrice: number;
+    exitPrice: number | null;
+    reason: string | null;
+    closedAt: string | null;
+  }[];
+};
+
+const usd = (m: number) =>
+  `$${(m / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const signed = (m: number) => (m < 0 ? "-" : "+") + usd(Math.abs(m));
+const pnlColor = (m: number) => (m > 0 ? "text-mint-400" : m < 0 ? "text-rose-400" : "text-slate-300");
+const fmtPrice = (p: number) => {
+  const d = p >= 1000 ? 1 : p >= 1 ? 2 : 5;
+  return p.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+};
+
+/* -------------------------------------------------------------------------- */
+
+export function EngineMonitor() {
+  const [data, setData] = useState<EngineData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string>();
+  const [showOpen, setShowOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/engine", { cache: "no-store" });
+    if (res.ok) setData(await res.json());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = window.setInterval(load, 6000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  const act = useCallback(
+    async (payload: Record<string, unknown>, key: string): Promise<boolean> => {
+      setBusy(key);
+      setErr(undefined);
+      const res = await fetch("/api/admin/engine", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json().catch(() => ({}));
+      setBusy(null);
+      if (!res.ok) {
+        setErr(d.error ?? "Action failed.");
+        return false;
+      }
+      await load();
+      return true;
+    },
+    [load],
+  );
+
+  if (loading || !data) {
+    return (
+      <div className="grid place-items-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-mint-400" />
+      </div>
+    );
+  }
+
+  const s = data.summary;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display text-[24px] font-bold text-white">Copy engine</h1>
+          {data.mode === "live" ? (
+            <Badge tone="mint" dot>
+              Live settlement
+            </Badge>
+          ) : (
+            <Badge tone="amber" dot>
+              Paper mode
+            </Badge>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => act({ action: "tick" }, "tick")}
+            disabled={busy !== null}
+          >
+            {busy === "tick" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Run tick
+          </Button>
+          <Button size="sm" onClick={() => setShowOpen((v) => !v)}>
+            <Plus className="h-4 w-4" />
+            Open position
+          </Button>
+        </div>
+      </div>
+
+      <p className="-mt-2 text-[12.5px] text-slate-500">
+        {data.mode === "live"
+          ? "Closing a position settles real P&L to client balances."
+          : "Positions mark live but settle no real money until COPY_SETTLEMENT=live."}
+        {data.symbols.length === 0 && " · No live prices available right now."}
+      </p>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Open positions" value={String(s.openPositions)} icon={Activity} tone="text-white" />
+        <Stat
+          label="Copiers · staked"
+          value={`${s.copiers} · ${usd(s.stakedMinor)}`}
+          icon={Users2}
+          tone="text-white"
+        />
+        <Stat
+          label="Unrealized P&L"
+          value={signed(s.unrealizedMinor)}
+          icon={TrendingUp}
+          tone={pnlColor(s.unrealizedMinor)}
+        />
+        <Stat
+          label="Realized (all-time)"
+          value={signed(s.realizedMinor)}
+          icon={Wallet}
+          tone={pnlColor(s.realizedMinor)}
+        />
+      </div>
+
+      {err && (
+        <div className="rounded-lg border border-rose-500/25 bg-rose-500/[0.07] px-3.5 py-2.5 text-[12.5px] text-rose-300">
+          {err}
+        </div>
+      )}
+
+      {showOpen && (
+        <OpenForm
+          data={data}
+          busy={busy === "open"}
+          onClose={() => setShowOpen(false)}
+          onSubmit={async (payload) => {
+            const ok = await act(payload, "open");
+            if (ok) setShowOpen(false);
+          }}
+        />
+      )}
+
+      {/* Open positions */}
+      <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-ink-880/50">
+        <div className="border-b border-white/[0.06] px-4 py-3">
+          <h2 className="text-[14px] font-semibold text-white">Open positions</h2>
+        </div>
+        {data.positions.length === 0 ? (
+          <p className="px-4 py-12 text-center text-[13px] text-slate-500">
+            No open positions. Open one above, or let the automated tick run.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px]">
+              <thead>
+                <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-2.5 font-medium">Provider</th>
+                  <th className="px-4 py-2.5 font-medium">Instrument</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Entry → Now</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Size</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Copiers</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Staked</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Unrealized</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.positions.map((p) => (
+                  <tr key={p.id} className="border-b border-white/[0.04] last:border-0">
+                    <td className="px-4 py-3 text-[13px] text-slate-200">{p.provider}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-white">{p.symbol}</span>
+                        <Badge tone={p.side === "buy" ? "mint" : "rose"}>{p.side.toUpperCase()}</Badge>
+                      </div>
+                    </td>
+                    <td className="tnum px-4 py-3 text-right text-[12.5px] text-slate-300">
+                      {fmtPrice(p.entryPrice)}{" "}
+                      <span className="text-slate-600">→</span>{" "}
+                      {p.currentPrice != null ? fmtPrice(p.currentPrice) : "—"}
+                    </td>
+                    <td className="tnum px-4 py-3 text-right text-[12.5px] text-slate-400">
+                      {(p.sizePct * 100).toFixed(1)}%
+                    </td>
+                    <td className="tnum px-4 py-3 text-right text-[12.5px] text-slate-400">{p.mirrors}</td>
+                    <td className="tnum px-4 py-3 text-right text-[12.5px] text-slate-300">
+                      {usd(p.stakedMinor)}
+                    </td>
+                    <td
+                      className={cn(
+                        "tnum px-4 py-3 text-right text-[13px] font-semibold",
+                        p.unrealizedMinor != null ? pnlColor(p.unrealizedMinor) : "text-slate-500",
+                      )}
+                    >
+                      {p.unrealizedMinor != null ? signed(p.unrealizedMinor) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => act({ action: "close", positionId: p.id }, p.id)}
+                        disabled={busy !== null}
+                        className="focus-ring inline-flex items-center gap-1 rounded-lg border border-rose-500/25 bg-rose-500/[0.08] px-2.5 py-1.5 text-[12px] font-medium text-rose-300 transition-colors hover:bg-rose-500/[0.16] disabled:opacity-40"
+                      >
+                        {busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                        Close
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Recently closed */}
+      {data.recentClosed.length > 0 && (
+        <div className="rounded-2xl border border-white/[0.07] bg-ink-880/50 p-4">
+          <h2 className="text-[14px] font-semibold text-white">Recently closed</h2>
+          <div className="mt-3 space-y-1.5">
+            {data.recentClosed.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between gap-3 border-b border-white/[0.05] py-2 text-[12.5px] last:border-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-white">{c.symbol}</span>
+                  <Badge tone={c.side === "buy" ? "mint" : "rose"}>{c.side.toUpperCase()}</Badge>
+                  <span className="text-slate-500">· {c.provider}</span>
+                </div>
+                <div className="flex items-center gap-3 text-slate-400">
+                  <span className="tnum">
+                    {fmtPrice(c.entryPrice)} → {c.exitPrice != null ? fmtPrice(c.exitPrice) : "—"}
+                  </span>
+                  <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px] text-slate-400">
+                    {c.reason ?? "closed"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+function Stat({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Activity;
+  tone: string;
+}) {
+  return (
+    <div className="card-sheen rounded-2xl border border-white/[0.07] bg-ink-880/70 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] text-slate-500">{label}</span>
+        <Icon className={cn("h-4 w-4", tone)} />
+      </div>
+      <p className={cn("tnum mt-2 truncate font-display text-[22px] font-bold", tone)}>{value}</p>
+    </div>
+  );
+}
+
+function OpenForm({
+  data,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  data: EngineData;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => void;
+}) {
+  const [providerId, setProviderId] = useState(data.providers[0]?.id ?? "");
+  const [symbol, setSymbol] = useState(data.symbols[0] ?? "");
+  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [sizePct, setSizePct] = useState(5);
+  const [sl, setSl] = useState(1.5);
+  const [tp, setTp] = useState(2.5);
+
+  const price = data.quotes[symbol];
+
+  const submit = () => {
+    onSubmit({
+      action: "open",
+      providerId,
+      symbol,
+      side,
+      sizePct: sizePct / 100,
+      stopLossPct: sl / 100,
+      takeProfitPct: tp / 100,
+    });
+  };
+
+  const noProviders = data.providers.length === 0;
+  const noSymbols = data.symbols.length === 0;
+
+  return (
+    <div className="rounded-2xl border border-white/[0.09] bg-ink-880/70 p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[14px] font-semibold text-white">Open a provider position</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {noProviders || noSymbols ? (
+        <p className="mt-3 text-[13px] text-amber-300">
+          {noProviders
+            ? "No active providers to trade for. Add one first."
+            : "No instruments have a live price right now — add a market-data key or wait for crypto prices."}
+        </p>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[12px] text-slate-400">Provider</span>
+              <Select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+                {data.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[12px] text-slate-400">
+                Instrument {price != null && <span className="tnum text-slate-500">· {fmtPrice(price)}</span>}
+              </span>
+              <Select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+                {data.symbols.map((sy) => (
+                  <option key={sy} value={sy}>
+                    {sy}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div>
+              <span className="mb-1 block text-[12px] text-slate-400">Direction</span>
+              <div className="flex gap-1.5">
+                {(["buy", "sell"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSide(s)}
+                    className={cn(
+                      "flex-1 rounded-lg border py-2 text-[12.5px] font-medium capitalize transition-colors",
+                      side === s
+                        ? s === "buy"
+                          ? "border-mint-500/50 bg-mint-500/10 text-mint-300"
+                          : "border-rose-500/50 bg-rose-500/10 text-rose-300"
+                        : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.06]",
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <NumField label="Size % of allocation" value={sizePct} onChange={setSizePct} step={0.5} />
+            <NumField label="Stop-loss %" value={sl} onChange={setSl} step={0.1} />
+            <NumField label="Take-profit %" value={tp} onChange={setTp} step={0.1} />
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={submit} disabled={busy || !price} size="sm">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Open {side} · {symbol}
+            </Button>
+            <p className="text-[11.5px] text-slate-500">
+              Mirrors to every active copier, sized to their allocation.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function NumField({
+  label,
+  value,
+  onChange,
+  step,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  step: number;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[12px] text-slate-400">{label}</span>
+      <Input
+        type="number"
+        value={value}
+        step={step}
+        min={0}
+        onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
+      />
+    </label>
+  );
+}
