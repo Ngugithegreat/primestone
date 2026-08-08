@@ -101,6 +101,53 @@ export type MpesaStatus = {
   code?: string;
 };
 
+export type CryptoDepositResult =
+  | { ok: true; paymentId: string; payAddress: string; payAmount: number; payCurrency: string }
+  | { ok: false; error: string };
+
+/** Create a crypto deposit → a unique address to send the coins to. */
+export async function cryptoDeposit(input: {
+  amountUsd: number;
+  payCurrency: string;
+}): Promise<CryptoDepositResult> {
+  try {
+    const res = await fetch("/api/payments/crypto/initiate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Could not start a crypto deposit." };
+    return {
+      ok: true,
+      paymentId: data.paymentId,
+      payAddress: data.payAddress,
+      payAmount: data.payAmount,
+      payCurrency: data.payCurrency,
+    };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
+/** Reconcile a pending crypto deposit against NOWPayments. */
+export async function cryptoStatus(
+  paymentId: string,
+): Promise<"completed" | "failed" | "pending"> {
+  try {
+    const res = await fetch("/api/payments/crypto/status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paymentId }),
+    });
+    if (!res.ok) return "pending";
+    const data = await res.json();
+    return data.status ?? "pending";
+  } catch {
+    return "pending";
+  }
+}
+
 /** Ask the server to reconcile a pending M-Pesa deposit against Safaricom. */
 export async function mpesaStatus(paymentId: string): Promise<MpesaStatus> {
   try {

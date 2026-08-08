@@ -4,8 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
   BadgeCheck,
+  Check,
   CheckCircle2,
   Clock,
+  Coins,
+  Copy,
   Loader2,
   ShieldCheck,
   Smartphone,
@@ -19,6 +22,8 @@ import { Field, Input } from "@/components/ui/Field";
 import { Badge, Card } from "@/components/ui/Primitives";
 import {
   closeAllocation,
+  cryptoDeposit,
+  cryptoStatus,
   getAccount,
   getRealProviders,
   usd,
@@ -119,7 +124,7 @@ export function RealWallet() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <MpesaDeposit defaultPhone={user?.phone ?? ""} onCredited={refresh} />
+        <DepositPanel defaultPhone={user?.phone ?? ""} onCredited={refresh} />
         <Withdraw
           defaultPhone={user?.phone ?? ""}
           balanceMinor={balanceMinor}
@@ -137,6 +142,43 @@ export function RealWallet() {
 
       <Allocations account={account} onChanged={refresh} pushToast={pushToast} />
       <History account={account} />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Deposit panel — M-Pesa / Crypto tabs                                       */
+/* -------------------------------------------------------------------------- */
+
+function DepositPanel({
+  defaultPhone,
+  onCredited,
+}: {
+  defaultPhone: string;
+  onCredited: () => Promise<void>;
+}) {
+  const [tab, setTab] = useState<"mpesa" | "crypto">("mpesa");
+  return (
+    <div className="space-y-3">
+      <div className="inline-flex rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+        {(["mpesa", "crypto"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "rounded-lg px-4 py-1.5 text-[13px] font-medium transition-colors",
+              tab === t ? "bg-white/[0.09] text-white" : "text-slate-400 hover:text-slate-200",
+            )}
+          >
+            {t === "mpesa" ? "M-Pesa" : "Crypto"}
+          </button>
+        ))}
+      </div>
+      {tab === "mpesa" ? (
+        <MpesaDeposit defaultPhone={defaultPhone} onCredited={onCredited} />
+      ) : (
+        <CryptoDeposit onCredited={onCredited} />
+      )}
     </div>
   );
 }
@@ -474,6 +516,221 @@ function Withdraw({
           <p className="text-center text-[11px] text-slate-600">
             Requests are reviewed and paid to your M-Pesa, usually within a few hours.
           </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Crypto deposit (NOWPayments)                                               */
+/* -------------------------------------------------------------------------- */
+
+const CRYPTO_MIN = 20;
+const NETWORKS = [
+  { id: "usdttrc20", label: "USDT", net: "Tron (TRC-20)", note: "lowest fees · recommended" },
+  { id: "usdtbsc", label: "USDT", net: "BNB Chain (BEP-20)", note: "low fees" },
+];
+
+function CryptoDeposit({ onCredited }: { onCredited: () => Promise<void> }) {
+  const [amount, setAmount] = useState(100);
+  const [coin, setCoin] = useState("usdttrc20");
+  const [state, setState] = useState<"idle" | "creating" | "awaiting" | "done" | "failed">("idle");
+  const [message, setMessage] = useState<string>();
+  const [addr, setAddr] = useState<string>();
+  const [payAmount, setPayAmount] = useState<number>();
+  const [payCurrency, setPayCurrency] = useState<string>();
+  const [copied, setCopied] = useState(false);
+  const pollRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+  }, []);
+
+  const network = NETWORKS.find((n) => n.id === coin) ?? NETWORKS[0]!;
+
+  const start = async () => {
+    if (amount < CRYPTO_MIN) {
+      setState("failed");
+      setMessage(`The minimum crypto deposit is $${CRYPTO_MIN}.`);
+      return;
+    }
+    setMessage(undefined);
+    setState("creating");
+    const res = await cryptoDeposit({ amountUsd: amount, payCurrency: coin });
+    if (!res.ok) {
+      setState("failed");
+      setMessage(res.error);
+      return;
+    }
+    setAddr(res.payAddress);
+    setPayAmount(res.payAmount);
+    setPayCurrency(res.payCurrency);
+    setState("awaiting");
+
+    const paymentId = res.paymentId;
+    let ticks = 0;
+    pollRef.current = window.setInterval(async () => {
+      ticks++;
+      const status = await cryptoStatus(paymentId);
+      if (status === "completed") {
+        window.clearInterval(pollRef.current!);
+        setState("done");
+        setMessage("Payment received — your balance has been updated.");
+        await onCredited();
+      } else if (status === "failed" || ticks > 180) {
+        window.clearInterval(pollRef.current!);
+        if (status === "failed") {
+          setState("failed");
+          setMessage("This deposit expired or failed. You can start a new one.");
+        }
+      }
+    }, 10000);
+  };
+
+  const copy = async () => {
+    if (!addr) return;
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris-500/25 bg-iris-500/10">
+          <Coins className="h-4.5 w-4.5 text-iris-300" />
+        </span>
+        <div>
+          <h2 className="text-[15px] font-semibold text-white">Deposit with crypto</h2>
+          <p className="text-[12px] text-slate-500">USDT · credited automatically on confirmation.</p>
+        </div>
+      </div>
+
+      {state === "done" ? (
+        <div className="mt-5 grid place-items-center rounded-xl border border-mint-500/25 bg-mint-500/[0.07] px-4 py-8 text-center">
+          <CheckCircle2 className="h-9 w-9 text-mint-400" />
+          <p className="mt-3 text-[14px] font-semibold text-white">Deposit received</p>
+          <p className="mt-1 text-[12.5px] text-slate-400">{message}</p>
+          <button
+            onClick={() => setState("idle")}
+            className="mt-4 text-[13px] font-medium text-mint-400 hover:text-mint-300"
+          >
+            Make another deposit
+          </button>
+        </div>
+      ) : state === "awaiting" ? (
+        <div className="mt-5 space-y-3">
+          <div className="rounded-xl border border-iris-500/20 bg-iris-500/[0.05] p-4">
+            <p className="text-[12px] text-slate-400">Send exactly</p>
+            <p className="tnum mt-0.5 text-[20px] font-bold text-white">
+              {payAmount}{" "}
+              <span className="text-[14px] font-semibold uppercase text-iris-300">{payCurrency}</span>
+            </p>
+            <p className="mt-1 text-[11.5px] text-slate-500">on {network.net} · to the address below</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+            <p className="mb-1 text-[11px] uppercase tracking-[0.1em] text-slate-500">Deposit address</p>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 break-all text-[12.5px] text-white">{addr}</code>
+              <button
+                onClick={copy}
+                aria-label="Copy address"
+                className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.09]"
+              >
+                {copied ? <Check className="h-4 w-4 text-mint-400" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 rounded-lg border border-amber-450/25 bg-amber-450/[0.06] p-3 text-[12px] text-amber-300">
+            <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-pulse" />
+            Waiting for your transfer… this credits automatically once the network confirms (usually
+            1–2 min). You can safely leave this page.
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Only send {network.label} on {network.net}. Sending another coin or network can lose the
+            funds.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <Field label="Amount (USD)" htmlFor="cd-amount" hint={`Minimum $${CRYPTO_MIN}`}>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-slate-400">
+                $
+              </span>
+              <Input
+                id="cd-amount"
+                type="number"
+                min={CRYPTO_MIN}
+                step={10}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(0, Math.round(Number(e.target.value))))}
+                className="pl-7"
+              />
+            </div>
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            {[50, 100, 200, 500, 1000].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setAmount(v)}
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors",
+                  amount === v
+                    ? "border-iris-500/50 bg-iris-500/10 text-iris-200"
+                    : "border-white/10 bg-white/[0.02] text-slate-300 hover:bg-white/[0.06]",
+                )}
+              >
+                ${v.toLocaleString()}
+              </button>
+            ))}
+          </div>
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-slate-400">Coin &amp; network</p>
+            <div className="space-y-2">
+              {NETWORKS.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => setCoin(n.id)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors",
+                    coin === n.id
+                      ? "border-iris-500/50 bg-iris-500/[0.08]"
+                      : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]",
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-4 w-4 place-items-center rounded-full border border-white/25">
+                      {coin === n.id && <span className="h-2 w-2 rounded-full bg-iris-400" />}
+                    </span>
+                    <span className="text-[13px] font-medium text-white">{n.label}</span>
+                    <span className="text-[12px] text-slate-400">· {n.net}</span>
+                  </span>
+                  <span className="text-[11px] text-slate-500">{n.note}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {message && state === "failed" && (
+            <div className="flex items-start gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] p-3 text-[12.5px] text-rose-300">
+              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {message}
+            </div>
+          )}
+          <Button onClick={start} disabled={state === "creating"} className="w-full">
+            {state === "creating" && <Loader2 className="h-4 w-4 animate-spin" />}
+            {state === "creating" ? "Generating address…" : "Get deposit address"}
+          </Button>
+          <div className="flex items-center justify-center gap-1.5 pt-0.5 text-[11px] text-slate-600">
+            <ShieldCheck className="h-3.5 w-3.5 text-iris-400/70" />
+            Powered by NOWPayments · funds credit automatically on-chain
+          </div>
         </div>
       )}
     </Card>
