@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Logo, LogoMark } from "@/components/ui/Logo";
 import { SiteBackground } from "@/components/landing/SiteBackground";
+import { AccountSwitcher } from "./AccountSwitcher";
 import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
@@ -157,8 +158,10 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
   const copies = useStore((s) => s.copies);
   const positions = useStore((s) => s.positions);
   const kycStatus = useStore((s) => s.kyc.status);
+  const sessionMode = useStore((s) => s.sessionMode);
   const acct = getAccountType(user?.accountType);
   const real = useRealAccount();
+  const isReal = sessionMode === "real";
 
   const counts: Record<string, number> = {
     "/traders": copies.filter((c) => c.status === "active").length,
@@ -248,11 +251,11 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
             <span className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
               Account
             </span>
-            <Badge tone={real.isLive ? "mint" : "slate"} dot={real.isLive}>
-              {real.isLive ? "Live" : real.isReal ? "Funded" : "Demo"}
+            <Badge tone={isReal ? "mint" : "amber"} dot>
+              {isReal ? (real.isLive ? "Real · Funded" : "Real") : "Demo"}
             </Badge>
           </div>
-          {real.isLive ? (
+          {isReal ? (
             <>
               <p className="tnum mt-2 text-[16px] font-bold text-white">
                 {usd(real.totalMinor)}
@@ -263,9 +266,9 @@ function Sidebar({ className, onClose }: { className?: string; onClose?: () => v
             </>
           ) : (
             <>
-              <p className="mt-2 text-[14px] font-semibold text-white">{acct.name}</p>
+              <p className="mt-2 text-[14px] font-semibold text-white">{acct.name} · Demo</p>
               <p className="mt-0.5 text-[11.5px] text-slate-500">
-                1:{user?.leverage} · {acct.spreadLabel}
+                Virtual practice funds · 1:{user?.leverage}
               </p>
             </>
           )}
@@ -294,8 +297,10 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
   const balance = useStore((s) => s.balance);
   const positions = useStore((s) => s.positions);
   const signOut = useStore((s) => s.signOut);
+  const sessionMode = useStore((s) => s.sessionMode);
   const real = useRealAccount();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isReal = sessionMode === "real";
 
   const floating = useMemo(() => openPnl(positions, prices), [positions, prices]);
   const margin = useMemo(
@@ -324,8 +329,8 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
           <Menu className="h-4 w-4" />
         </button>
 
-        {/* Account metrics — real (KES) for live accounts, demo desk otherwise */}
-        {real.isLive ? (
+        {/* Account metrics — real ledger (USD) vs the demo practice desk */}
+        {isReal ? (
           <div className="flex flex-1 items-center gap-1 overflow-x-auto">
             <KesMetric label="Account value" value={real.totalMinor} tone="text-white" />
             <Divider />
@@ -339,7 +344,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             />
             <span className="ml-1 hidden md:inline-flex">
               <Badge tone="mint" dot>
-                Live account
+                Real account
               </Badge>
             </span>
           </div>
@@ -359,7 +364,9 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
             <Divider className="hidden xl:block" />
             <Metric label="Free margin" value={free} tone="text-slate-200" className="hidden xl:flex" />
             <span className="ml-1 hidden md:inline-flex">
-              <Badge tone="slate">Practice desk</Badge>
+              <Badge tone="amber" dot>
+                Demo · practice funds
+              </Badge>
             </span>
           </div>
         )}
@@ -367,6 +374,8 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         <div className="hidden shrink-0 items-center gap-3 md:flex">
           <LiveDot label="MARKET OPEN" />
         </div>
+
+        <AccountSwitcher />
 
         {/* Account menu */}
         <div className="relative shrink-0">

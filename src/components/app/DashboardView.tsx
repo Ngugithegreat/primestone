@@ -33,7 +33,6 @@ import { ButtonLink } from "@/components/ui/Button";
 import { money, relativeTime, signed } from "@/lib/format";
 import { INSTRUMENTS, formatPrice } from "@/lib/market";
 import { openPnl, portfolioStats, useStore } from "@/lib/store";
-import { useRealAccount } from "@/lib/useRealAccount";
 import { LiveOverview } from "./LiveOverview";
 import { getTrader } from "@/lib/traders";
 import { cn, initialsOf } from "@/lib/utils";
@@ -41,12 +40,12 @@ import { cn, initialsOf } from "@/lib/utils";
 export function DashboardView() {
   const { prices, quotes } = useMarket();
   const user = useStore((s) => s.user);
+  const sessionMode = useStore((s) => s.sessionMode);
   const balance = useStore((s) => s.balance);
   const positions = useStore((s) => s.positions);
   const history = useStore((s) => s.history);
   const copies = useStore((s) => s.copies);
   const toggleCopy = useStore((s) => s.toggleCopy);
-  const real = useRealAccount();
 
   const floating = useMemo(() => openPnl(positions, prices), [positions, prices]);
   const stats = useMemo(() => portfolioStats(history), [history]);
@@ -84,9 +83,10 @@ export function DashboardView() {
   const recent = useMemo(() => history.slice(0, 6), [history]);
   const now = Date.now();
 
-  // A funded (live) account gets the real-money overview; everyone else sees
-  // the demo trading dashboard.
-  if (real.isLive) return <LiveOverview />;
+  // The switcher decides which account you're viewing. Real → the funded
+  // ledger overview (even at $0, with a fund-your-account CTA); Demo → the
+  // virtual practice desk below.
+  if (sessionMode === "real") return <LiveOverview />;
 
   return (
     <div className="space-y-5">

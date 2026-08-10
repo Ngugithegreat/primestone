@@ -171,6 +171,8 @@ type Actions = {
   resetKyc: () => void;
   /** Sync the KYC status from the server (real, ledger-backed accounts). */
   setKycStatus: (status: KycStatus) => void;
+  /** Switch between the real (ledger) account and the demo practice account. */
+  setSessionMode: (mode: "real" | "demo") => void;
 
   toggleWatch: (symbol: string) => void;
   pushToast: (t: Omit<Toast, "id">) => void;
@@ -409,11 +411,12 @@ export const useStore = create<Store>()(
         const existing = get();
         // Preserve any app state already loaded for this session; only seed
         // fresh demo trading state when there is none yet.
-        const needsSeed = !existing.user || existing.sessionMode !== "real";
+        const needsSeed = !existing.user || existing.sessionMode == null;
         const credit = getAccountType(input.accountType).demoCredit;
         set({
           user: { ...input, createdAt: now },
-          sessionMode: "real",
+          // Default new sessions to the real account; preserve a demo choice.
+          sessionMode: existing.sessionMode ?? "real",
           ...(needsSeed
             ? {
                 balance: credit,
@@ -669,6 +672,8 @@ export const useStore = create<Store>()(
         });
       },
 
+      setSessionMode: (mode) => set({ sessionMode: mode }),
+
       toggleWatch: (symbol) => {
         const list = get().watchlist;
         set({
@@ -707,11 +712,10 @@ export const useStore = create<Store>()(
       // `user` — are abandoned rather than rehydrated into a password-less login.
       name: "primestone.session.v2",
       storage: createJSONStorage(() => localStorage),
-      // NB: `user` and `sessionMode` are deliberately NOT persisted. Who is
-      // signed in is decided ONLY by the httpOnly server session cookie
-      // (validated via /api/auth/me on load), never by localStorage — otherwise
-      // a stale browser could "log in" with no password and no valid session.
-      // The rest is demo/practice-desk state, safe to keep across reloads.
+      // NB: `user` is deliberately NOT persisted. Who is signed in is decided
+      // ONLY by the httpOnly server session cookie (validated via /api/auth/me),
+      // never by localStorage. `sessionMode` IS persisted — it's just a UI
+      // preference (real vs demo view) and grants no access on its own.
       partialize: (s) => ({
         balance: s.balance,
         demoCredit: s.demoCredit,
@@ -720,6 +724,7 @@ export const useStore = create<Store>()(
         copies: s.copies,
         txns: s.txns,
         watchlist: s.watchlist,
+        sessionMode: s.sessionMode,
       }),
     },
   ),
