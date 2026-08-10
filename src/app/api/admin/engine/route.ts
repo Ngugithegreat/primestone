@@ -11,7 +11,7 @@ import {
   settlementMode,
 } from "@/server/copyEngine";
 import { getQuotes, priceableSymbols } from "@/server/marketData";
-import { listProviders } from "@/server/providers";
+import { createProvider, listProviders } from "@/server/providers";
 
 /** Admin copy-engine monitor: overview + manual open/close/tick. */
 export const dynamic = "force-dynamic";
@@ -95,6 +95,25 @@ export async function POST(req: Request) {
     const res = await closeProviderPosition(db, { positionId, exitPrice: price, reason: "manual" });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
     return NextResponse.json(res);
+  }
+
+  if (action === "createProvider") {
+    const res = await createProvider(db, {
+      name: String(body?.name ?? ""),
+      handle: String(body?.handle ?? ""),
+      strategy: String(body?.strategy ?? ""),
+      bio: String(body?.bio ?? ""),
+      country: String(body?.country ?? ""),
+      roi12m: Number(body?.roi12m) || 0,
+      winRate: clamp(Number(body?.winRate) || 0, 0, 100),
+      maxDrawdown: clamp(Number(body?.maxDrawdown) || 0, 0, 100),
+      feeBps: Math.round(clamp(Number(body?.feeBps) || 2000, 0, 10000)),
+      minInvestment: Math.max(0, Number(body?.minInvestment) || 0),
+      verified: Boolean(body?.verified),
+      active: true,
+    });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+    return NextResponse.json({ ok: true, id: res.id });
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });

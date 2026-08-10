@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Loader2, Play, Plus, TrendingUp, Users2, Wallet, X } from "lucide-react";
+import { Activity, Loader2, Play, Plus, TrendingUp, UserPlus, Users2, Wallet, X } from "lucide-react";
 import { Badge } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
@@ -66,6 +66,7 @@ export function EngineMonitor() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string>();
   const [showOpen, setShowOpen] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/engine", { cache: "no-store" });
@@ -136,7 +137,25 @@ export function EngineMonitor() {
             {busy === "tick" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Run tick
           </Button>
-          <Button size="sm" onClick={() => setShowOpen((v) => !v)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setShowAdd((v) => !v);
+              setShowOpen(false);
+            }}
+            disabled={busy !== null}
+          >
+            <UserPlus className="h-4 w-4" />
+            Add provider
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowOpen((v) => !v);
+              setShowAdd(false);
+            }}
+          >
             <Plus className="h-4 w-4" />
             Open position
           </Button>
@@ -177,6 +196,17 @@ export function EngineMonitor() {
         <div className="rounded-lg border border-rose-500/25 bg-rose-500/[0.07] px-3.5 py-2.5 text-[12.5px] text-rose-300">
           {err}
         </div>
+      )}
+
+      {showAdd && (
+        <AddProviderForm
+          busy={busy === "addProvider"}
+          onClose={() => setShowAdd(false)}
+          onSubmit={async (payload) => {
+            const ok = await act({ action: "createProvider", ...payload }, "addProvider");
+            if (ok) setShowAdd(false);
+          }}
+        />
       )}
 
       {showOpen && (
@@ -315,6 +345,119 @@ function Stat({
         <Icon className={cn("h-4 w-4", tone)} />
       </div>
       <p className={cn("tnum mt-2 truncate font-display text-[22px] font-bold", tone)}>{value}</p>
+    </div>
+  );
+}
+
+function AddProviderForm({
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => void;
+}) {
+  // Pre-filled with Flossin so a new trader can be added in one click.
+  const [name, setName] = useState("Flossin");
+  const [country, setCountry] = useState("Kenya");
+  const [strategy, setStrategy] = useState("Momentum · Crypto & Indices");
+  const [bio, setBio] = useState(
+    "Nairobi-based momentum trader focused on high-liquidity crypto and index moves, with disciplined risk control.",
+  );
+  const [roi12m, setRoi12m] = useState(128.5);
+  const [winRate, setWinRate] = useState(68.4);
+  const [maxDrawdown, setMaxDrawdown] = useState(12.7);
+  const [feePct, setFeePct] = useState(20);
+  const [minInvestment, setMinInvestment] = useState(100);
+  const [verified, setVerified] = useState(true);
+
+  const submit = () => {
+    onSubmit({
+      name,
+      country,
+      strategy,
+      bio,
+      roi12m,
+      winRate,
+      maxDrawdown,
+      feeBps: Math.round(feePct * 100),
+      minInvestment,
+      verified,
+    });
+  };
+
+  const num = (v: string) => Number(v.replace(/[^0-9.]/g, "")) || 0;
+
+  return (
+    <div className="rounded-2xl border border-white/[0.09] bg-ink-880/70 p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[14px] font-semibold text-white">Add a strategy provider</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Name</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Trader name" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Country</span>
+          <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Kenya" />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-[12px] text-slate-400">Strategy</span>
+          <Input value={strategy} onChange={(e) => setStrategy(e.target.value)} placeholder="e.g. Momentum · Crypto" />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-[12px] text-slate-400">Bio</span>
+          <Input value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Short description" />
+        </label>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">12M return %</span>
+          <Input value={String(roi12m)} onChange={(e) => setRoi12m(num(e.target.value))} inputMode="decimal" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Win rate %</span>
+          <Input value={String(winRate)} onChange={(e) => setWinRate(num(e.target.value))} inputMode="decimal" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Max drawdown %</span>
+          <Input value={String(maxDrawdown)} onChange={(e) => setMaxDrawdown(num(e.target.value))} inputMode="decimal" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Performance fee %</span>
+          <Input value={String(feePct)} onChange={(e) => setFeePct(num(e.target.value))} inputMode="decimal" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] text-slate-400">Min investment $</span>
+          <Input value={String(minInvestment)} onChange={(e) => setMinInvestment(num(e.target.value))} inputMode="decimal" />
+        </label>
+        <label className="flex items-end gap-2 pb-2.5">
+          <input
+            type="checkbox"
+            checked={verified}
+            onChange={(e) => setVerified(e.target.checked)}
+            className="h-4 w-4 accent-mint-500"
+          />
+          <span className="text-[12.5px] text-slate-300">Verified badge</span>
+        </label>
+      </div>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={submit} disabled={busy || name.trim().length < 2}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+          Add provider
+        </Button>
+      </div>
     </div>
   );
 }
