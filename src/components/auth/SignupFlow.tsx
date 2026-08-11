@@ -113,6 +113,7 @@ export function SignupFlow() {
       }
 
       signInReal({
+        id: result.user.id,
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         email: result.user.email,

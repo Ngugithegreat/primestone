@@ -14,6 +14,7 @@ import { TRADERS } from "./traders";
 /* -------------------------------------------------------------------------- */
 
 export type User = {
+  id?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -125,6 +126,7 @@ type Actions = {
   signIn: (email: string) => void;
   /** Populate app state from a real, server-authenticated user. */
   signInReal: (input: {
+    id?: string;
     firstName: string;
     lastName: string;
     email: string;

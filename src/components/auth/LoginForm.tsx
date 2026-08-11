@@ -30,6 +30,7 @@ export function LoginForm() {
       const { user: serverUser } = await apiMe();
       if (cancelled || !serverUser) return;
       signInReal({
+        id: serverUser.id,
         firstName: serverUser.firstName,
         lastName: serverUser.lastName,
         email: serverUser.email,
@@ -67,6 +68,7 @@ export function LoginForm() {
     }
 
     signInReal({
+      id: result.user.id,
       firstName: result.user.firstName,
       lastName: result.user.lastName,
       email: result.user.email,

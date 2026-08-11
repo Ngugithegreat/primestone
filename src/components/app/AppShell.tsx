@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Logo, LogoMark } from "@/components/ui/Logo";
 import { SiteBackground } from "@/components/landing/SiteBackground";
 import { AccountSwitcher } from "./AccountSwitcher";
+import { IdleTimeout } from "./IdleTimeout";
 import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
@@ -27,6 +28,7 @@ import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
 import { apiLogout, apiMe } from "@/lib/authClient";
 import { useRealAccount } from "@/lib/useRealAccount";
 import { usd } from "@/lib/accountClient";
+import { accountNumber } from "@/lib/account";
 import { cn, initialsOf } from "@/lib/utils";
 
 const NAV = [
@@ -65,6 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (serverUser) {
         useStore.getState().signInReal({
+          id: serverUser.id,
           firstName: serverUser.firstName,
           lastName: serverUser.lastName,
           email: serverUser.email,
@@ -98,6 +101,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-ink-950">
+      {/* Auto sign-out after inactivity. */}
+      <IdleTimeout />
       {/* Ambient — drifting orbs only. Particles and the sweep are too busy
           behind live tables and charts. */}
       <SiteBackground variant="subtle" />
@@ -418,6 +423,12 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
                     {user?.firstName} {user?.lastName}
                   </p>
                   <p className="truncate text-[12px] text-slate-500">{user?.email}</p>
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono tracking-wide text-slate-300">
+                      {accountNumber(user?.id)}
+                    </span>
+                    Account ID
+                  </p>
                 </div>
                 <div className="p-1.5">
                   <Link

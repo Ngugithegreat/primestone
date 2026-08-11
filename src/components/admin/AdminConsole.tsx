@@ -10,6 +10,7 @@ import {
   Clock,
   FileText,
   Flag,
+  Hash,
   Loader2,
   LogOut,
   Mail,
@@ -28,6 +29,7 @@ import { Badge } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn, initialsOf } from "@/lib/utils";
+import { accountNumber } from "@/lib/account";
 import { DepositsView } from "./DepositsView";
 import { EngineMonitor } from "./EngineMonitor";
 import { WithdrawalsQueue } from "./WithdrawalsQueue";
@@ -138,7 +140,8 @@ export function AdminConsole() {
           u.firstName.toLowerCase().includes(q) ||
           u.lastName.toLowerCase().includes(q) ||
           u.email.toLowerCase().includes(q) ||
-          u.country.toLowerCase().includes(q),
+          u.country.toLowerCase().includes(q) ||
+          accountNumber(u.id).toLowerCase().includes(q),
       );
     }
     return list;
@@ -291,7 +294,9 @@ export function AdminConsole() {
                               {u.role !== "client" && <Badge tone="iris">{u.role}</Badge>}
                               {u.flagged && <Flag className="h-3 w-3 text-rose-400" />}
                             </div>
-                            <p className="truncate text-[12px] text-slate-500">{u.email}</p>
+                            <p className="truncate text-[12px] text-slate-500">
+                              {u.email} · <span className="font-mono text-slate-400">{accountNumber(u.id)}</span>
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -379,6 +384,9 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
                 {user.role !== "client" && <Badge tone="iris">{user.role}</Badge>}
               </div>
               <p className="text-[12.5px] text-slate-500">{user.flag} {user.country}</p>
+              <p className="mt-0.5 font-mono text-[11.5px] tracking-wide text-mint-400">
+                {accountNumber(user.id)}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="focus-ring grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/[0.07] hover:text-white"><X className="h-4 w-4" /></button>
