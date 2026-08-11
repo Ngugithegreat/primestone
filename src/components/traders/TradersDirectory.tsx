@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CopyModal } from "./CopyModal";
@@ -7,9 +8,52 @@ import { TraderCard } from "./TraderCard";
 import { Card } from "@/components/ui/Primitives";
 import { SegmentedControl } from "@/components/ui/Field";
 import { ASSET_CLASS_LABEL, getInstrument, type AssetClass } from "@/lib/market";
+import { getRealProviders, type RealProvider } from "@/lib/accountClient";
 import { useStore } from "@/lib/store";
 import { TRADERS, type RiskLevel, type Trader } from "@/lib/traders";
 import { cn } from "@/lib/utils";
+
+const FLAG: Record<string, string> = {
+  Kenya: "🇰🇪", Nigeria: "🇳🇬", "South Africa": "🇿🇦", Ghana: "🇬🇭", Tanzania: "🇹🇿",
+  Uganda: "🇺🇬", "United Kingdom": "🇬🇧", Germany: "🇩🇪", Singapore: "🇸🇬", UAE: "🇦🇪",
+  India: "🇮🇳", "United States": "🇺🇸",
+};
+
+/** Map a real, admin-managed provider onto the Trader card shape. */
+function realProviderToTrader(p: RealProvider): Trader {
+  const roi12m = Number(p.roi12m) || 0;
+  const maxDrawdown = Number(p.maxDrawdown) || 0;
+  const risk: RiskLevel = maxDrawdown < 8 ? "Low" : maxDrawdown < 15 ? "Medium" : "High";
+  return {
+    id: p.id,
+    isReal: true,
+    name: p.name,
+    handle: p.handle || `@${p.name.toLowerCase().replace(/\s+/g, "")}`,
+    country: p.country || "Kenya",
+    flag: FLAG[p.country] ?? "🌍",
+    gradient: ["#2ff0bd", "#6366f1"],
+    verified: p.verified,
+    strategy: p.strategy || "Copy strategy",
+    bio: p.bio || "",
+    markets: ["BTCUSD", "ETHUSD", "XAUUSD"],
+    roi12m,
+    roi30d: Math.round((roi12m / 12) * 10) / 10,
+    winRate: Number(p.winRate) || 0,
+    followers: 0,
+    fee: p.feeBps / 100,
+    monthsActive: 6,
+    aum: 0,
+    trades: 0,
+    maxDrawdown,
+    profitFactor: 1.6,
+    avgHoldHours: 12,
+    riskScore: maxDrawdown < 8 ? 3 : maxDrawdown < 15 ? 5 : 8,
+    risk,
+    copySlots: 500,
+    slotsTaken: 0,
+    minInvestment: Math.round((p.minInvestmentMinor ?? 0) / 100),
+  };
+}
 
 type SortKey = "roi12m" | "roi30d" | "winRate" | "followers" | "maxDrawdown" | "fee";
 
@@ -26,6 +70,7 @@ const RISKS: (RiskLevel | "all")[] = ["all", "Low", "Medium", "High"];
 const MARKETS: (AssetClass | "all")[] = ["all", "forex", "crypto", "metals", "indices", "stocks"];
 
 export function TradersDirectory() {
+  const router = useRouter();
   const copies = useStore((s) => s.copies);
 
   const [query, setQuery] = useState("");
@@ -34,11 +79,18 @@ export function TradersDirectory() {
   const [market, setMarket] = useState<AssetClass | "all">("all");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [target, setTarget] = useState<Trader | null>(null);
+  const [realTraders, setRealTraders] = useState<Trader[]>([]);
 
+  // Real, admin-managed providers appear at the top, above the demo roster.
+  useEffect(() => {
+    getRealProviders().then((ps) => setRealTraders(ps.map(realProviderToTrader)));
+  }, []);
+
+  const everyone = useMemo(() => [...realTraders, ...TRADERS], [realTraders]);
   const copiedIds = useMemo(() => new Set(copies.map((c) => c.traderId)), [copies]);
 
   const results = useMemo(() => {
-    let list = TRADERS.slice();
+    let list = everyone.slice();
 
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -58,7 +110,7 @@ export function TradersDirectory() {
 
     const ascending = sort === "maxDrawdown" || sort === "fee";
     return list.sort((a, b) => (ascending ? a[sort] - b[sort] : b[sort] - a[sort]));
-  }, [query, sort, risk, market, verifiedOnly]);
+  }, [everyone, query, sort, risk, market, verifiedOnly]);
 
   const filtersActive = risk !== "all" || market !== "all" || verifiedOnly || query !== "";
 
@@ -77,7 +129,7 @@ export function TradersDirectory() {
             Strategy providers
           </h1>
           <p className="mt-1 text-[14px] text-slate-400">
-            {results.length} of {TRADERS.length} providers · every statistic recalculated
+            {results.length} of {everyone.length} providers · every statistic recalculated
             nightly from settled trades
           </p>
         </div>
@@ -193,9 +245,9 @@ export function TradersDirectory() {
               <TraderCard
                 key={t.id}
                 trader={t}
-                href={`/traders/${t.id}`}
+                href={t.isReal ? "/wallet" : `/traders/${t.id}`}
                 index={i % PAGE}
-                onCopy={setTarget}
+                onCopy={(tr) => (tr.isReal ? router.push("/wallet") : setTarget(tr))}
                 copying={copiedIds.has(t.id)}
               />
             ))}

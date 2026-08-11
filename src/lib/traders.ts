@@ -35,6 +35,8 @@ export type Trader = {
   copySlots: number;
   slotsTaken: number;
   minInvestment: number;
+  /** True for real, admin-managed providers (copied via the wallet ledger flow). */
+  isReal?: boolean;
 };
 
 type Seedling = Omit<Trader, "risk" | "flag"> & { flag?: string };
