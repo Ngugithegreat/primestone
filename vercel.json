@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/copy-tick",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-deposits",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

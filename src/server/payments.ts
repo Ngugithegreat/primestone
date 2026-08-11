@@ -299,6 +299,25 @@ export async function rejectWithdrawal(
   });
 }
 
+/** All deposits with the depositing user, newest first (admin). */
+export async function listDeposits(db: Database, opts?: { status?: string }) {
+  const rows = await db
+    .select({ payment: payments, user: users })
+    .from(payments)
+    .innerJoin(users, eq(payments.userId, users.id))
+    .where(eq(payments.kind, "deposit"))
+    .orderBy(desc(payments.createdAt));
+  return opts?.status ? rows.filter((r) => r.payment.status === opts.status) : rows;
+}
+
+/** Pending deposits (any provider) — for the reconciliation cron. */
+export async function listPendingDeposits(db: Database) {
+  return db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.kind, "deposit"), eq(payments.status, "pending")));
+}
+
 /** All withdrawal requests with the requesting user, newest first. */
 export async function listWithdrawals(db: Database, opts?: { status?: string }) {
   const rows = await db

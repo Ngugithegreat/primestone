@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  ArrowDownToLine,
   Ban,
   Banknote,
   Check,
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn, initialsOf } from "@/lib/utils";
+import { DepositsView } from "./DepositsView";
 import { EngineMonitor } from "./EngineMonitor";
 import { WithdrawalsQueue } from "./WithdrawalsQueue";
 
@@ -105,7 +107,7 @@ export function AdminConsole() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<KycStatus | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<"users" | "engine" | "withdrawals">("users");
+  const [view, setView] = useState<"users" | "engine" | "deposits" | "withdrawals">("users");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/users", { cache: "no-store" });
@@ -189,6 +191,7 @@ export function AdminConsole() {
           {([
             { id: "users", label: "Users", icon: Users2 },
             { id: "engine", label: "Copy engine", icon: Activity },
+            { id: "deposits", label: "Deposits", icon: ArrowDownToLine },
             { id: "withdrawals", label: "Withdrawals", icon: Banknote },
           ] as const).map((t) => (
             <button
@@ -207,6 +210,8 @@ export function AdminConsole() {
 
         {view === "engine" ? (
           <EngineMonitor />
+        ) : view === "deposits" ? (
+          <DepositsView />
         ) : view === "withdrawals" ? (
           <WithdrawalsQueue />
         ) : (
