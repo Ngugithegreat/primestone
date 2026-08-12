@@ -51,6 +51,19 @@ export type RealOpenPosition = {
   openedAt: string;
 };
 
+export type RealClosedPosition = {
+  id: string;
+  symbol: string;
+  label: string;
+  side: "buy" | "sell";
+  entryPrice: number;
+  exitPrice: number | null;
+  stakeMinor: number;
+  realizedPnl: number;
+  provider: string;
+  closedAt: string;
+};
+
 export type AccountSnapshot = {
   currency: string;
   balanceMinor: number;
@@ -59,6 +72,7 @@ export type AccountSnapshot = {
   payments: RealPayment[];
   realizedPnlMinor: number;
   openPositions: RealOpenPosition[];
+  closedPositions: RealClosedPosition[];
 };
 
 export async function getAccount(): Promise<AccountSnapshot | null> {

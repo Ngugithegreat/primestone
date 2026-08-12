@@ -448,6 +448,48 @@ export async function listOpenCopyPositions(
   }));
 }
 
+export type ClosedCopyPosition = {
+  id: string;
+  symbol: string;
+  label: string;
+  side: "buy" | "sell";
+  entryPrice: number;
+  exitPrice: number | null;
+  stakeMinor: number;
+  realizedPnl: number;
+  provider: string;
+  closedAt: string;
+};
+
+/** A user's closed copied trades, newest first — the real trade history. */
+export async function listClosedCopyPositions(
+  db: Database,
+  userId: string,
+  limit = 60,
+): Promise<ClosedCopyPosition[]> {
+  const rows = await db
+    .select({ pos: copyPositions, providerName: signalProviders.name })
+    .from(copyPositions)
+    .innerJoin(providerPositions, eq(copyPositions.providerPositionId, providerPositions.id))
+    .innerJoin(signalProviders, eq(providerPositions.providerId, signalProviders.id))
+    .where(and(eq(copyPositions.userId, userId), eq(copyPositions.status, "closed")))
+    .orderBy(desc(copyPositions.closedAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.pos.id,
+    symbol: r.pos.symbol,
+    label: instrumentLabel(r.pos.symbol),
+    side: r.pos.side,
+    entryPrice: Number(r.pos.entryPrice),
+    exitPrice: r.pos.exitPrice ? Number(r.pos.exitPrice) : null,
+    stakeMinor: r.pos.stakeMinor,
+    realizedPnl: r.pos.realizedPnl,
+    provider: r.providerName,
+    closedAt: r.pos.closedAt ? new Date(r.pos.closedAt).toISOString() : "",
+  }));
+}
+
 /**
  * The live value of a user's active allocations, read from the ledger (principal
  * plus any settled P&L still sitting in the allocation account). Keyed by

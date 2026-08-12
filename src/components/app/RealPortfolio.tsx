@@ -9,11 +9,18 @@ import { usd } from "@/lib/accountClient";
 import { useRealAccount } from "@/lib/useRealAccount";
 import { cn, initialsOf } from "@/lib/utils";
 
+/** Compact price formatting that adapts to magnitude (JPY pairs to Bitcoin). */
+function fmt(price: number): string {
+  const digits = price >= 1000 ? 1 : price >= 1 ? 2 : 5;
+  return price.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 /** Portfolio for a real, ledger-backed account — real USD money only, no demo. */
 export function RealPortfolio() {
   const real = useRealAccount();
   const subs = (real.account?.allocations ?? []).filter((a) => a.status !== "closed");
   const payments = real.account?.payments ?? [];
+  const closed = real.account?.closedPositions ?? [];
 
   return (
     <div className="space-y-5">
@@ -94,6 +101,70 @@ export function RealPortfolio() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </Card>
+
+      {/* Trade history */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-white">Trade history</h2>
+          <span className="text-[12px] text-slate-500">{closed.length} closed</span>
+        </div>
+        {closed.length === 0 ? (
+          <p className="mt-4 text-[13px] text-slate-500">
+            No closed trades yet. Once the providers you copy open and close positions, they&rsquo;ll
+            appear here.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                  <th className="pb-2 font-medium">Instrument</th>
+                  <th className="pb-2 font-medium">Provider</th>
+                  <th className="pb-2 text-right font-medium">Entry → Exit</th>
+                  <th className="pb-2 text-right font-medium">P&L</th>
+                  <th className="pb-2 text-right font-medium">Closed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {closed.map((t) => (
+                  <tr key={t.id} className="text-[13px]">
+                    <td className="py-2.5">
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium text-white">{t.symbol}</span>
+                        <Badge tone={t.side === "buy" ? "mint" : "rose"}>{t.side.toUpperCase()}</Badge>
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-slate-400">{t.provider}</td>
+                    <td className="tnum py-2.5 text-right text-slate-400">
+                      {fmt(t.entryPrice)}
+                      {t.exitPrice != null ? ` → ${fmt(t.exitPrice)}` : ""}
+                    </td>
+                    <td
+                      className={cn(
+                        "tnum py-2.5 text-right font-semibold",
+                        t.realizedPnl >= 0 ? "text-mint-400" : "text-rose-400",
+                      )}
+                    >
+                      {t.realizedPnl >= 0 ? "+" : "-"}
+                      {usd(Math.abs(t.realizedPnl))}
+                    </td>
+                    <td className="py-2.5 text-right text-[11.5px] text-slate-500">
+                      {t.closedAt
+                        ? new Date(t.closedAt).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>

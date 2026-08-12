@@ -6,6 +6,7 @@ import { listAllocations } from "@/server/allocations";
 import { listPayments } from "@/server/payments";
 import {
   activeAllocationValues,
+  listClosedCopyPositions,
   listOpenCopyPositions,
   realizedCopyPnl,
 } from "@/server/copyEngine";
@@ -16,12 +17,13 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getDb();
-  const [cashMinor, allocations, payments, openPositions, realizedPnlMinor, allocValues] =
+  const [cashMinor, allocations, payments, openPositions, closedPositions, realizedPnlMinor, allocValues] =
     await Promise.all([
       clientCashBalance(db, user.id),
       listAllocations(db, user.id),
       listPayments(db, user.id),
       listOpenCopyPositions(db, user.id),
+      listClosedCopyPositions(db, user.id),
       realizedCopyPnl(db, user.id),
       activeAllocationValues(db, user.id),
     ]);
@@ -73,5 +75,6 @@ export async function GET() {
       provider: o.provider,
       openedAt: o.openedAt,
     })),
+    closedPositions,
   });
 }
