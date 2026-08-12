@@ -1,9 +1,17 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { allocations, copyPositions, ledgerAccounts, providerPositions, users } from "@/db/schema";
+import {
+  allocations,
+  copyPositions,
+  ledgerAccounts,
+  providerPositions,
+  signalProviders,
+  users,
+} from "@/db/schema";
 import {
   balanceOf,
+  createAllocationAccount,
   ensureClientCashAccount,
   ensureSystemAccount,
   postWithin,
@@ -45,10 +53,36 @@ export async function testCredit(
   return { ok: true, name: `${u.firstName} ${u.lastName}`.trim() || u.email };
 }
 
+/** Move all of a user's cash into a fresh allocation to `providerId`. */
+async function forceAllocateCash(db: Database, userId: string, providerId: string) {
+  await db.transaction(async (tx) => {
+    const cashId = await ensureClientCashAccount(tx as unknown as Database, userId, "USD");
+    const cashBal = await balanceOf(tx as unknown as Database, cashId);
+    if (cashBal <= 0) return;
+    const accId = await createAllocationAccount(tx as unknown as Database, userId, providerId, "USD");
+    const [alloc] = await tx
+      .insert(allocations)
+      .values({ userId, providerId, amount: cashBal, riskMultiplier: "1" })
+      .returning({ id: allocations.id });
+    await postWithin(tx as unknown as Database, {
+      kind: "allocation",
+      reference: `test-alloc:${alloc!.id}:${Date.now()}`,
+      memo: "TEST auto-allocate for blow",
+      createdBy: userId,
+      currency: "USD",
+      legs: [
+        { accountId: cashId, amount: -cashBal },
+        { accountId: accId, amount: cashBal },
+      ],
+    });
+  });
+}
+
 /**
  * Instantly blow every active allocation (or one user's): drain each allocation
  * account to $0 as a loss and close its open positions. Simulates a wiped
- * account so you can confirm the blow-up flow works.
+ * account so you can confirm the blow-up flow works. For a targeted user, any
+ * uncopied cash is allocated first so the whole account is wiped.
  */
 export async function blowAllocations(
   db: Database,
@@ -59,6 +93,22 @@ export async function blowAllocations(
     const [u] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1);
     userId = u?.id;
     if (!userId) return { ok: true, blown: 0 };
+
+    // If this user has cash but hasn't copied anyone, allocate their whole
+    // balance to a provider first — so "blow my account" actually wipes it.
+    const [hasAlloc] = await db
+      .select({ id: allocations.id })
+      .from(allocations)
+      .where(and(eq(allocations.status, "active"), eq(allocations.userId, userId)))
+      .limit(1);
+    if (!hasAlloc) {
+      const [prov] = await db
+        .select({ id: signalProviders.id })
+        .from(signalProviders)
+        .where(eq(signalProviders.active, true))
+        .limit(1);
+      if (prov) await forceAllocateCash(db, userId, prov.id);
+    }
   }
 
   const allocs = await db
