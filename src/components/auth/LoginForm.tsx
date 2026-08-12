@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AuthLayout } from "./AuthLayout";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { useStore } from "@/lib/store";
-import { apiLogin, apiMe } from "@/lib/authClient";
+import { apiLogin } from "@/lib/authClient";
 import type { AccountTypeId } from "@/lib/accounts";
 
 export function LoginForm() {
@@ -21,31 +21,9 @@ export function LoginForm() {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  // Skip the form ONLY if the server confirms a live session cookie — never
-  // based on client-side/localStorage state. A logged-out visitor always has
-  // to enter their password here.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { user: serverUser } = await apiMe();
-      if (cancelled || !serverUser) return;
-      signInReal({
-        id: serverUser.id,
-        firstName: serverUser.firstName,
-        lastName: serverUser.lastName,
-        email: serverUser.email,
-        phone: serverUser.phone,
-        country: serverUser.country,
-        accountType: (serverUser.accountType as AccountTypeId) ?? "standard",
-        leverage: serverUser.leverage,
-        kycVerified: serverUser.kycStatusCache === "verified",
-      });
-      router.replace("/dashboard");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, signInReal]);
+  // The login page always shows the form and requires credentials — we never
+  // auto-forward to the dashboard on an existing cookie. Signing in is an
+  // explicit action.
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

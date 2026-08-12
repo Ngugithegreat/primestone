@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { auditLog, kycProfiles, users } from "@/db/schema";
 import { isAdminAuthed } from "@/server/adminAuth";
+import { kycApprovedEmail, kycRejectedEmail, sendEmail } from "@/server/email";
+import { siteUrl } from "@/lib/siteUrl";
 
 /** Approve or reject a user's KYC. Admin-authed (env-password session). */
 export async function POST(req: Request) {
@@ -35,6 +37,20 @@ export async function POST(req: Request) {
       metadata: reason ? { reason } : null,
     });
   });
+
+  // Notify the user of the decision (best-effort).
+  try {
+    const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (u?.email) {
+      const e =
+        decision === "verified"
+          ? kycApprovedEmail({ firstName: u.firstName, dashboardUrl: `${siteUrl()}/dashboard` })
+          : kycRejectedEmail({ firstName: u.firstName, reason, verifyUrl: `${siteUrl()}/verify` });
+      await sendEmail({ to: u.email, subject: e.subject, html: e.html });
+    }
+  } catch (err) {
+    console.error("[email] kyc notify failed:", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

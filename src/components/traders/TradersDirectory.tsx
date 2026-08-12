@@ -8,7 +8,13 @@ import { TraderCard } from "./TraderCard";
 import { Card } from "@/components/ui/Primitives";
 import { SegmentedControl } from "@/components/ui/Field";
 import { ASSET_CLASS_LABEL, getInstrument, type AssetClass } from "@/lib/market";
-import { getRealProviders, type RealProvider } from "@/lib/accountClient";
+import {
+  getRealProviders,
+  subscribeToProvider,
+  usd,
+  type RealProvider,
+} from "@/lib/accountClient";
+import { useRealAccount } from "@/lib/useRealAccount";
 import { useStore } from "@/lib/store";
 import { TRADERS, type RiskLevel, type Trader } from "@/lib/traders";
 import { cn } from "@/lib/utils";
@@ -72,6 +78,34 @@ const MARKETS: (AssetClass | "all")[] = ["all", "forex", "crypto", "metals", "in
 export function TradersDirectory() {
   const router = useRouter();
   const copies = useStore((s) => s.copies);
+  const pushToast = useStore((s) => s.pushToast);
+  const real = useRealAccount();
+
+  // Copying a REAL provider allocates your available balance to them, so the
+  // engine starts mirroring their trades into your account. No balance yet →
+  // send them to the wallet to deposit first.
+  const copyReal = async (t: Trader) => {
+    if (real.balanceMinor <= 0) {
+      pushToast({
+        tone: "info",
+        title: "Deposit to start copying",
+        body: "Add funds to your account, then copy this provider.",
+      });
+      router.push("/wallet");
+      return;
+    }
+    const res = await subscribeToProvider({ providerId: t.id, amount: real.balanceMinor / 100 });
+    if (res.ok) {
+      pushToast({
+        tone: "success",
+        title: `Now copying ${t.name}`,
+        body: `${usd(real.balanceMinor)} allocated — their trades will mirror into your account.`,
+      });
+      await real.refresh();
+    } else {
+      pushToast({ tone: "error", title: "Could not copy", body: res.error });
+    }
+  };
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("roi12m");
@@ -247,7 +281,7 @@ export function TradersDirectory() {
                 trader={t}
                 href={t.isReal ? "/wallet" : `/traders/${t.id}`}
                 index={i % PAGE}
-                onCopy={(tr) => (tr.isReal ? router.push("/wallet") : setTarget(tr))}
+                onCopy={(tr) => (tr.isReal ? copyReal(tr) : setTarget(tr))}
                 copying={copiedIds.has(t.id)}
               />
             ))}

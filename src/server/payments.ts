@@ -8,6 +8,16 @@ import {
   postWithin,
   toMinor,
 } from "./ledger";
+import {
+  depositCreditedEmail,
+  sendEmail,
+  withdrawalPaidEmail,
+  withdrawalRejectedEmail,
+} from "./email";
+import { siteUrl } from "@/lib/siteUrl";
+
+const fmtUsd = (minor: number) =>
+  `$${(minor / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * Payments.
@@ -71,14 +81,15 @@ export async function confirmDeposit(
     rawCallback?: unknown;
   },
 ): Promise<{ ok: boolean; alreadyProcessed: boolean }> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [payment] = await tx
       .select()
       .from(payments)
       .where(eq(payments.id, input.paymentId))
       .limit(1);
     if (!payment) throw new Error("Payment not found.");
-    if (payment.status === "completed") return { ok: true, alreadyProcessed: true };
+    if (payment.status === "completed")
+      return { ok: true, alreadyProcessed: true, credited: null as CreditedInfo | null };
 
     // A different payment already used this receipt → duplicate callback.
     const dupe = await tx
@@ -87,7 +98,7 @@ export async function confirmDeposit(
       .where(eq(payments.externalRef, input.externalRef))
       .limit(1);
     if (dupe[0] && dupe[0].id !== input.paymentId) {
-      return { ok: false, alreadyProcessed: true };
+      return { ok: false, alreadyProcessed: true, credited: null as CreditedInfo | null };
     }
 
     // The account is denominated in USD; credit the converted amount.
@@ -119,8 +130,34 @@ export async function confirmDeposit(
       })
       .where(eq(payments.id, payment.id));
 
-    return { ok: true, alreadyProcessed: false };
+    return {
+      ok: true,
+      alreadyProcessed: false,
+      credited: { userId: payment.userId, minor: creditMinor, provider: payment.provider },
+    };
   });
+
+  // Notify the client — after commit, best-effort (never blocks/fails crediting).
+  if (result.ok && !result.alreadyProcessed && result.credited) {
+    await notifyDepositCredited(db, result.credited).catch((e) =>
+      console.error("[email] deposit notify failed:", e),
+    );
+  }
+  return { ok: result.ok, alreadyProcessed: result.alreadyProcessed };
+}
+
+type CreditedInfo = { userId: string; minor: number; provider: string };
+
+async function notifyDepositCredited(db: Database, c: CreditedInfo) {
+  const [u] = await db.select().from(users).where(eq(users.id, c.userId)).limit(1);
+  if (!u?.email) return;
+  const e = depositCreditedEmail({
+    firstName: u.firstName,
+    amount: fmtUsd(c.minor),
+    method: c.provider === "mpesa" ? "M-Pesa" : c.provider === "crypto" ? "Crypto (USDT)" : c.provider,
+    dashboardUrl: `${siteUrl()}/wallet`,
+  });
+  await sendEmail({ to: u.email, subject: e.subject, html: e.html });
 }
 
 /**
@@ -218,7 +255,7 @@ export async function completeWithdrawal(
   db: Database,
   input: { paymentId: string; reviewerId?: string | null; externalRef?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [p] = await tx.select().from(payments).where(eq(payments.id, input.paymentId)).limit(1);
     if (!p || p.kind !== "withdrawal") return { ok: false as const, error: "Withdrawal not found." };
     if (p.status !== "pending") return { ok: false as const, error: "This withdrawal is already processed." };
@@ -239,8 +276,33 @@ export async function completeWithdrawal(
       targetId: p.id,
       metadata: input.externalRef ? { externalRef: input.externalRef } : null,
     });
-    return { ok: true as const };
+    return { ok: true as const, userId: p.userId, amount: p.amount };
   });
+
+  if (result.ok) {
+    await notifyWithdrawal(db, result.userId, result.amount, "paid").catch((e) =>
+      console.error("[email] withdrawal paid notify failed:", e),
+    );
+    return { ok: true };
+  }
+  return result;
+}
+
+async function notifyWithdrawal(
+  db: Database,
+  userId: string,
+  minor: number,
+  kind: "paid" | "rejected",
+  reason?: string,
+) {
+  const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!u?.email) return;
+  const dashboardUrl = `${siteUrl()}/wallet`;
+  const e =
+    kind === "paid"
+      ? withdrawalPaidEmail({ firstName: u.firstName, amount: fmtUsd(minor), dashboardUrl })
+      : withdrawalRejectedEmail({ firstName: u.firstName, amount: fmtUsd(minor), reason, dashboardUrl });
+  await sendEmail({ to: u.email, subject: e.subject, html: e.html });
 }
 
 /**
@@ -252,7 +314,7 @@ export async function rejectWithdrawal(
   db: Database,
   input: { paymentId: string; reviewerId?: string | null; reason?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [p] = await tx.select().from(payments).where(eq(payments.id, input.paymentId)).limit(1);
     if (!p || p.kind !== "withdrawal") return { ok: false as const, error: "Withdrawal not found." };
     if (p.status !== "pending") return { ok: false as const, error: "This withdrawal is already processed." };
@@ -295,8 +357,16 @@ export async function rejectWithdrawal(
       targetId: p.id,
       metadata: input.reason ? { reason: input.reason } : null,
     });
-    return { ok: true as const };
+    return { ok: true as const, userId: p.userId, amount: p.amount };
   });
+
+  if (result.ok) {
+    await notifyWithdrawal(db, result.userId, result.amount, "rejected", input.reason).catch((e) =>
+      console.error("[email] withdrawal rejected notify failed:", e),
+    );
+    return { ok: true };
+  }
+  return result;
 }
 
 /** All deposits with the depositing user, newest first (admin). */

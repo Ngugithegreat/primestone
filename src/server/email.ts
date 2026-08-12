@@ -98,6 +98,85 @@ export function welcomeEmail(input: { firstName: string; loginUrl: string }): {
   };
 }
 
+function row(label: string, value: string): string {
+  return `<p style="margin:0 0 16px;font-size:14.5px;line-height:1.6;color:#c7d2e0;">${label}
+    <strong style="color:#fff;">${value}</strong></p>`;
+}
+
+export function depositCreditedEmail(input: {
+  firstName: string;
+  amount: string;
+  method: string;
+  dashboardUrl: string;
+}) {
+  return {
+    subject: `Deposit received — ${input.amount}`,
+    html: shell(
+      "Your deposit is in 🎉",
+      `${row(`Hi ${input.firstName}, we've credited your account with`, input.amount)}
+       <p style="margin:0 0 22px;font-size:13.5px;color:#8b97a8;">Method: ${input.method}. It's ready to allocate to a strategy provider.</p>
+       ${button(input.dashboardUrl, "View my balance")}`,
+    ),
+  };
+}
+
+export function withdrawalPaidEmail(input: { firstName: string; amount: string; dashboardUrl: string }) {
+  return {
+    subject: `Withdrawal sent — ${input.amount}`,
+    html: shell(
+      "Your withdrawal is on its way",
+      `${row(`Hi ${input.firstName}, we've sent`, input.amount)}
+       <p style="margin:0 0 22px;font-size:13.5px;color:#8b97a8;">It should reflect on your M-Pesa shortly.</p>
+       ${button(input.dashboardUrl, "View transactions")}`,
+    ),
+  };
+}
+
+export function withdrawalRejectedEmail(input: {
+  firstName: string;
+  amount: string;
+  reason?: string;
+  dashboardUrl: string;
+}) {
+  return {
+    subject: `Withdrawal not processed — ${input.amount} returned`,
+    html: shell(
+      "Withdrawal returned to your balance",
+      `<p style="margin:0 0 16px;font-size:14.5px;line-height:1.6;color:#c7d2e0;">
+         Hi ${input.firstName}, your withdrawal request for <strong style="color:#fff;">${input.amount}</strong>
+         couldn't be processed${input.reason ? `: ${input.reason}` : ""}. The funds have been returned
+         to your available balance.</p>
+       ${button(input.dashboardUrl, "View my balance")}`,
+    ),
+  };
+}
+
+export function kycApprovedEmail(input: { firstName: string; dashboardUrl: string }) {
+  return {
+    subject: "Your identity is verified ✅",
+    html: shell(
+      "You're verified",
+      `<p style="margin:0 0 22px;font-size:14.5px;line-height:1.6;color:#c7d2e0;">
+         Great news ${input.firstName} — your identity has been confirmed. Withdrawals are now
+         enabled on your account.</p>
+       ${button(input.dashboardUrl, "Go to my account")}`,
+    ),
+  };
+}
+
+export function kycRejectedEmail(input: { firstName: string; reason?: string; verifyUrl: string }) {
+  return {
+    subject: "Identity verification needs another look",
+    html: shell(
+      "We couldn't verify your documents",
+      `<p style="margin:0 0 16px;font-size:14.5px;line-height:1.6;color:#c7d2e0;">
+         Hi ${input.firstName}, we weren't able to verify your identity${input.reason ? `: ${input.reason}` : ""}.
+         Please re-submit clear, valid documents and we'll review again.</p>
+       ${button(input.verifyUrl, "Re-submit documents")}`,
+    ),
+  };
+}
+
 export function passwordResetEmail(input: { firstName: string; resetUrl: string }): {
   subject: string;
   html: string;
