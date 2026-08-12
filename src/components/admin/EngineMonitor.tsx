@@ -67,6 +67,9 @@ export function EngineMonitor() {
   const [err, setErr] = useState<string>();
   const [showOpen, setShowOpen] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [riskDraft, setRiskDraft] = useState("");
+  const [savedRisk, setSavedRisk] = useState<number | null>(null);
+  const [savingRisk, setSavingRisk] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/engine", { cache: "no-store" });
@@ -79,6 +82,34 @@ export function EngineMonitor() {
     const id = window.setInterval(load, 6000);
     return () => window.clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    fetch("/api/admin/settings", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.riskPct != null) {
+          setSavedRisk(d.riskPct);
+          setRiskDraft(String(d.riskPct));
+        }
+      });
+  }, []);
+
+  const saveRisk = async () => {
+    const v = Number(riskDraft);
+    if (!Number.isFinite(v) || v <= 0) return;
+    setSavingRisk(true);
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ riskPct: v }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setSavingRisk(false);
+    if (res.ok && d.riskPct != null) {
+      setSavedRisk(d.riskPct);
+      setRiskDraft(String(d.riskPct));
+    }
+  };
 
   const act = useCallback(
     async (payload: Record<string, unknown>, key: string): Promise<boolean> => {
@@ -190,6 +221,37 @@ export function EngineMonitor() {
           icon={Wallet}
           tone={pnlColor(s.realizedMinor)}
         />
+      </div>
+
+      {/* Risk control */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[0.09] bg-ink-880/70 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-white">Risk per trade</p>
+          <p className="text-[11.5px] text-slate-500">
+            % of each copier&rsquo;s balance risked on every trade the engine opens. Higher = bigger
+            swings and faster blow-ups (for testing).
+            {savedRisk != null && (
+              <span className="text-slate-400"> Current: {savedRisk}%.</span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Input
+              value={riskDraft}
+              onChange={(e) => setRiskDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              className="w-24 pr-7"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-slate-500">
+              %
+            </span>
+          </div>
+          <Button size="sm" onClick={saveRisk} disabled={savingRisk || riskDraft === ""}>
+            {savingRisk ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
       </div>
 
       {err && (

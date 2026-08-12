@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { balanceOf, ensureSystemAccount, postWithin } from "./ledger";
 import { getLiveQuotes, instrumentLabel, priceableSymbols } from "./marketData";
+import { getRiskPct } from "./settings";
 
 /**
  * The copy-trade engine.
@@ -90,7 +91,12 @@ export async function openProviderPosition(
 
     let mirrors = 0;
     for (const a of active) {
-      const stake = Math.round(a.amount * input.sizePct);
+      // Risk `sizePct` of the copier's CURRENT allocation balance (principal +
+      // settled P&L), so risk shrinks as an account draws down — and a blown
+      // account (≈$0) simply stops opening new positions.
+      const accId = await allocationAccountId(tx as unknown as Database, a.userId, a.providerId);
+      const balance = accId ? await balanceOf(tx as unknown as Database, accId) : a.amount;
+      const stake = Math.round(balance * input.sizePct);
       if (stake < MIN_STAKE_MINOR) continue;
       await tx.insert(copyPositions).values({
         providerPositionId: pos!.id,
@@ -301,6 +307,8 @@ export async function runEngineTick(
   db: Database,
 ): Promise<{ opened: number; closed: number; priced: number; mode: SettlementMode }> {
   const mode = settlementMode();
+  // Admin-configurable risk per trade (% of each copier's balance).
+  const riskFraction = (await getRiskPct(db)) / 100;
   const quotes = await getLiveQuotes();
   const symbols = Object.keys(quotes);
   if (symbols.length === 0) return { opened: 0, closed: 0, priced: 0, mode };
@@ -373,7 +381,7 @@ export async function runEngineTick(
       const symbol = pick(symbols);
       const price = quotes[symbol]!;
       const side: "buy" | "sell" = Math.random() < 0.5 ? "buy" : "sell";
-      const sizePct = 0.04 + Math.random() * 0.06; // risk 4%–10% of each allocation
+      const sizePct = riskFraction; // admin-set risk % of the copier's balance
       const stopLossPct = 0.012 + Math.random() * 0.018; // 1.2%–3.0% adverse move = full risk
       const takeProfitPct = 0.018 + Math.random() * 0.03; // 1.8%–4.8% (~1.5× the stop)
 

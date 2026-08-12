@@ -333,13 +333,14 @@ async function main() {
     exitPrice: 300,
     reason: "test",
   });
+  // Risk = 50% of the post-win $240 balance = $120; full stop-out loses it all.
   check(
-    "losing trade floored at the risked amount (-$100.00)",
-    closeLoss.ok && closeLoss.netPnlMinor === -toMinor(100),
+    "losing trade floored at the risked amount (-$120.00)",
+    closeLoss.ok && closeLoss.netPnlMinor === -toMinor(120),
     closeLoss.ok ? `(got ${closeLoss.netPnlMinor})` : "",
   );
   const av2 = await activeAllocationValues(db, userId);
-  check("loss debited: allocation now $140.00", av2.totalMinor === toMinor(140), `(got ${toMajor(av2.totalMinor)})`);
+  check("loss debited: allocation now $120.00", av2.totalMinor === toMinor(120), `(got ${toMajor(av2.totalMinor)})`);
   await assertLedgerBalanced(db, "after losing copy trade");
 
   // Paper mode must move NO real money.
