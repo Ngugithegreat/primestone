@@ -27,6 +27,7 @@ import { getAccountType } from "@/lib/accounts";
 import { openPnl, usedMargin, useHydrated, useStore } from "@/lib/store";
 import { apiLogout, apiMe } from "@/lib/authClient";
 import { useRealAccount } from "@/lib/useRealAccount";
+import { useLiveOpenPnl } from "@/lib/useOpenPnl";
 import { usd } from "@/lib/accountClient";
 import { accountNumber } from "@/lib/account";
 import { cn, initialsOf } from "@/lib/utils";
@@ -304,6 +305,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
   const signOut = useStore((s) => s.signOut);
   const sessionMode = useStore((s) => s.sessionMode);
   const real = useRealAccount();
+  const realOpenPnl = useLiveOpenPnl(real.openPositions);
   const [menuOpen, setMenuOpen] = useState(false);
   const isReal = sessionMode === "real";
 
@@ -347,7 +349,15 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
               tone="text-mint-400"
               className="hidden sm:flex"
             />
-            <span className="ml-1 hidden md:inline-flex">
+            <Divider className="hidden md:block" />
+            <KesMetric
+              label="Open P&L"
+              value={realOpenPnl}
+              tone={realOpenPnl >= 0 ? "text-mint-400" : "text-rose-400"}
+              signed
+              className="hidden md:flex"
+            />
+            <span className="ml-1 hidden lg:inline-flex">
               <Badge tone="mint" dot>
                 Real account
               </Badge>
@@ -484,22 +494,27 @@ function Metric({
   );
 }
 
-/** Top-bar metric in KES minor units, for real/live accounts. */
+/** Top-bar metric in USD minor units, for real/live accounts. */
 function KesMetric({
   label,
   value,
   tone,
+  signed = false,
   className,
 }: {
   label: string;
   value: number;
   tone: string;
+  signed?: boolean;
   className?: string;
 }) {
   return (
     <div className={cn("flex shrink-0 flex-col px-3", className)}>
       <span className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">{label}</span>
-      <span className={cn("tnum text-[14px] font-semibold", tone)}>{usd(value)}</span>
+      <span className={cn("tnum text-[14px] font-semibold", tone)}>
+        {signed ? (value >= 0 ? "+" : "-") : ""}
+        {usd(signed ? Math.abs(value) : value)}
+      </span>
     </div>
   );
 }

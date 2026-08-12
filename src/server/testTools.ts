@@ -53,20 +53,53 @@ export async function testCredit(
   return { ok: true, name: `${u.firstName} ${u.lastName}`.trim() || u.email };
 }
 
-/** Move all of a user's cash into a fresh allocation to `providerId`. */
-async function forceAllocateCash(db: Database, userId: string, providerId: string) {
+/**
+ * Move all of a user's cash into an allocation so it can be blown. Reuses an
+ * existing active allocation's account if there is one (avoids duplicate
+ * accounts for the same provider); otherwise allocates to `fallbackProviderId`.
+ */
+async function forceAllocateCash(db: Database, userId: string, fallbackProviderId: string) {
   await db.transaction(async (tx) => {
     const cashId = await ensureClientCashAccount(tx as unknown as Database, userId, "USD");
     const cashBal = await balanceOf(tx as unknown as Database, cashId);
     if (cashBal <= 0) return;
-    const accId = await createAllocationAccount(tx as unknown as Database, userId, providerId, "USD");
-    const [alloc] = await tx
-      .insert(allocations)
-      .values({ userId, providerId, amount: cashBal, riskMultiplier: "1" })
-      .returning({ id: allocations.id });
+
+    const [existing] = await tx
+      .select()
+      .from(allocations)
+      .where(and(eq(allocations.status, "active"), eq(allocations.userId, userId)))
+      .orderBy(desc(allocations.startedAt))
+      .limit(1);
+
+    let accId: string;
+    if (existing) {
+      const [acc] = await tx
+        .select({ id: ledgerAccounts.id })
+        .from(ledgerAccounts)
+        .where(
+          and(
+            eq(ledgerAccounts.kind, "client_allocation"),
+            eq(ledgerAccounts.userId, userId),
+            eq(ledgerAccounts.providerId, existing.providerId),
+          ),
+        )
+        .orderBy(desc(ledgerAccounts.createdAt))
+        .limit(1);
+      accId = acc?.id ?? (await createAllocationAccount(tx as unknown as Database, userId, existing.providerId, "USD"));
+      await tx
+        .update(allocations)
+        .set({ amount: sql`${allocations.amount} + ${cashBal}` })
+        .where(eq(allocations.id, existing.id));
+    } else {
+      accId = await createAllocationAccount(tx as unknown as Database, userId, fallbackProviderId, "USD");
+      await tx
+        .insert(allocations)
+        .values({ userId, providerId: fallbackProviderId, amount: cashBal, riskMultiplier: "1" });
+    }
+
     await postWithin(tx as unknown as Database, {
       kind: "allocation",
-      reference: `test-alloc:${alloc!.id}:${Date.now()}`,
+      reference: `test-alloc:${userId}:${Date.now()}`,
       memo: "TEST auto-allocate for blow",
       createdBy: userId,
       currency: "USD",
@@ -94,21 +127,14 @@ export async function blowAllocations(
     userId = u?.id;
     if (!userId) return { ok: true, blown: 0 };
 
-    // If this user has cash but hasn't copied anyone, allocate their whole
-    // balance to a provider first — so "blow my account" actually wipes it.
-    const [hasAlloc] = await db
-      .select({ id: allocations.id })
-      .from(allocations)
-      .where(and(eq(allocations.status, "active"), eq(allocations.userId, userId)))
+    // Sweep any available cash into an allocation first, so "blow my account"
+    // wipes the whole balance — not just funds already copying a provider.
+    const [prov] = await db
+      .select({ id: signalProviders.id })
+      .from(signalProviders)
+      .where(eq(signalProviders.active, true))
       .limit(1);
-    if (!hasAlloc) {
-      const [prov] = await db
-        .select({ id: signalProviders.id })
-        .from(signalProviders)
-        .where(eq(signalProviders.active, true))
-        .limit(1);
-      if (prov) await forceAllocateCash(db, userId, prov.id);
-    }
+    if (prov) await forceAllocateCash(db, userId, prov.id);
   }
 
   const allocs = await db
