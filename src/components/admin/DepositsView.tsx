@@ -12,6 +12,7 @@ type Deposit = {
   chargedCurrency: string;
   provider: string;
   status: string;
+  providerRef: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string; flag: string };
 };
@@ -42,6 +43,7 @@ export function DepositsView() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingOnly, setPendingOnly] = useState(false);
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string>();
 
   const load = useCallback(async () => {
@@ -71,6 +73,13 @@ export function DepositsView() {
     if (!res.ok) {
       setErr(d.error ?? "Action failed.");
       return;
+    }
+    if (action === "reconcile") {
+      const msg =
+        d.status === "completed"
+          ? "Credited ✓"
+          : `Still ${d.status}${d.detail ? ` — ${d.detail}` : ""}`;
+      setNotes((n) => ({ ...n, [paymentId]: msg }));
     }
     await load();
   };
@@ -139,7 +148,8 @@ export function DepositsView() {
             {shown.map((d) => {
               const isPending = d.status === "pending" || d.status === "initiated";
               return (
-                <div key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div key={d.id} className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink-950"
@@ -204,6 +214,23 @@ export function DepositsView() {
                       </div>
                     )}
                   </div>
+                  </div>
+                  {(d.providerRef || notes[d.id]) && (
+                    <p className="mt-2 flex flex-wrap items-center gap-x-2 pl-12 text-[11px] text-slate-500">
+                      {d.providerRef && (
+                        <span className="font-mono text-slate-400">ref {d.providerRef}</span>
+                      )}
+                      {notes[d.id] && (
+                        <span
+                          className={
+                            notes[d.id].startsWith("Credited") ? "text-mint-400" : "text-amber-300"
+                          }
+                        >
+                          {notes[d.id]}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
               );
             })}

@@ -69,6 +69,7 @@ export async function GET() {
       side: o.side,
       entryPrice: o.entryPrice,
       stakeMinor: o.stakeMinor,
+      slPct: o.slPct,
       provider: o.provider,
       openedAt: o.openedAt,
     })),

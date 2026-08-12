@@ -46,8 +46,11 @@ export async function adminEngineData(db: Database) {
     const staked = ms.reduce((s, m) => s + m.stakeMinor, 0);
     const price = quotes[r.pos.symbol] ?? null;
     const entry = Number(r.pos.entryPrice);
+    const slPct = r.pos.stopLossPct != null ? Number(r.pos.stopLossPct) : 0.02;
     const unrealized =
-      price != null ? ms.reduce((s, m) => s + positionPnl(m.side, entry, price, m.stakeMinor), 0) : null;
+      price != null
+        ? ms.reduce((s, m) => s + positionPnl(m.side, entry, price, m.stakeMinor, slPct), 0)
+        : null;
     return {
       id: r.pos.id,
       provider: r.providerName,
@@ -67,11 +70,7 @@ export async function adminEngineData(db: Database) {
 
   const stakedTotal = openMirrors.reduce((s, m) => s + m.stakeMinor, 0);
   const copiers = new Set(openMirrors.map((m) => m.userId)).size;
-  const unrealizedTotal = openMirrors.reduce((s, m) => {
-    const p = quotes[m.symbol];
-    if (p == null) return s;
-    return s + positionPnl(m.side, Number(m.entryPrice), p, m.stakeMinor);
-  }, 0);
+  const unrealizedTotal = positions.reduce((s, p) => s + (p.unrealizedMinor ?? 0), 0);
 
   const closed = await db
     .select({ v: copyPositions.realizedPnl })

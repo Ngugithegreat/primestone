@@ -26,6 +26,7 @@ export async function GET() {
     chargedCurrency: r.payment.currency,
     provider: r.payment.provider,
     status: r.payment.status,
+    providerRef: r.payment.providerRequestId,
     createdAt: r.payment.createdAt,
     user: {
       id: r.user.id,
@@ -96,15 +97,20 @@ export async function POST(req: Request) {
     }
     if (p.provider === "crypto") {
       const q = await getCryptoStatus(p.providerRequestId);
-      if (q && isPaidStatus(q.status)) {
+      if (!q) return NextResponse.json({ ok: true, status: "pending", detail: "NOWPayments unreachable or not configured." });
+      if (isPaidStatus(q.status)) {
         await confirmDeposit(db, { paymentId: p.id, externalRef: `nowpay:${p.providerRequestId}`, rawCallback: { source: "admin-reconcile" } });
         return NextResponse.json({ ok: true, status: "completed" });
       }
-      if (q && isFailedStatus(q.status)) {
+      if (isFailedStatus(q.status)) {
         await db.update(payments).set({ status: "failed", updatedAt: new Date() }).where(eq(payments.id, p.id));
-        return NextResponse.json({ ok: true, status: "failed" });
+        return NextResponse.json({ ok: true, status: "failed", detail: `NOWPayments: ${q.status}` });
       }
-      return NextResponse.json({ ok: true, status: "pending" });
+      return NextResponse.json({
+        ok: true,
+        status: "pending",
+        detail: `NOWPayments: ${q.status}${q.actuallyPaid ? ` · received ${q.actuallyPaid}` : " · nothing received yet"}`,
+      });
     }
     return NextResponse.json({ error: "This provider can't be reconciled automatically." }, { status: 400 });
   }

@@ -299,22 +299,24 @@ async function main() {
     sizePct: 0.5,
   });
   check("provider position opened + mirrored to 1 allocation", openWin.ok && openWin.mirrors === 1);
+  // Risk = 50% of $200 = $100. Default stop 2%; exit +1% = halfway to the stop
+  // distance ⇒ +0.5× risk = +$50 gross, 20% fee = $10, net +$40.
   const closeWin = await closeProviderPosition(db, {
     positionId: openWin.ok ? openWin.positionId : "",
-    exitPrice: 110,
+    exitPrice: 101,
     reason: "test",
   });
   check(
-    "winning trade: net +$8.00 after 20% fee ($2.00)",
-    closeWin.ok && closeWin.netPnlMinor === toMinor(8) && closeWin.feeMinor === toMinor(2),
+    "winning trade: net +$40.00 after 20% fee ($10.00)",
+    closeWin.ok && closeWin.netPnlMinor === toMinor(40) && closeWin.feeMinor === toMinor(10),
     closeWin.ok ? `(net ${closeWin.netPnlMinor}, fee ${closeWin.feeMinor})` : "",
   );
   const av1 = await activeAllocationValues(db, userId);
-  check("profit credited: allocation now $208.00", av1.totalMinor === toMinor(208), `(got ${toMajor(av1.totalMinor)})`);
+  check("profit credited: allocation now $240.00", av1.totalMinor === toMinor(240), `(got ${toMajor(av1.totalMinor)})`);
   const pnlBal = await balanceOf(db, await ensureSystemAccount(db, "system_pnl"));
   const feeBal = await balanceOf(db, await ensureSystemAccount(db, "system_fees"));
-  check("house P&L account paid the gross (-$10.00)", pnlBal === -toMinor(10), `(got ${toMajor(pnlBal)})`);
-  check("fees account earned $2.00", feeBal === toMinor(2), `(got ${toMajor(feeBal)})`);
+  check("house P&L account paid the gross (-$50.00)", pnlBal === -toMinor(50), `(got ${toMajor(pnlBal)})`);
+  check("fees account earned $10.00", feeBal === toMinor(10), `(got ${toMajor(feeBal)})`);
   await assertLedgerBalanced(db, "after winning copy trade");
 
   // A catastrophic SELL: price triples against it — loss is clamped so a single
@@ -332,12 +334,12 @@ async function main() {
     reason: "test",
   });
   check(
-    "losing trade clamped to the stake (-$100.00)",
+    "losing trade floored at the risked amount (-$100.00)",
     closeLoss.ok && closeLoss.netPnlMinor === -toMinor(100),
     closeLoss.ok ? `(got ${closeLoss.netPnlMinor})` : "",
   );
   const av2 = await activeAllocationValues(db, userId);
-  check("loss debited: allocation now $108.00", av2.totalMinor === toMinor(108), `(got ${toMajor(av2.totalMinor)})`);
+  check("loss debited: allocation now $140.00", av2.totalMinor === toMinor(140), `(got ${toMajor(av2.totalMinor)})`);
   await assertLedgerBalanced(db, "after losing copy trade");
 
   // Paper mode must move NO real money.

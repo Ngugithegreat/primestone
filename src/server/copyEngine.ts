@@ -112,17 +112,29 @@ export async function openProviderPosition(
 /*  Closing a provider position → settle every mirror                          */
 /* -------------------------------------------------------------------------- */
 
-/** Realized P&L on a stake, clamped so a position can never lose more than its stake. */
+/**
+ * Realized P&L, sized to the RISK put on the trade.
+ *
+ * `riskMinor` is the amount the copier risked (a % of their allocation). We
+ * normalise the real price move against the stop-loss distance: at the stop the
+ * copier loses their full risk (−risk); a take-profit at ~1.5× the stop pays
+ * ~1.5× the risk. This keeps dollar P&L meaningful (real $ swings, not cents)
+ * while still being driven entirely by real price movement. Loss floored at the
+ * risked amount; gain capped at 3× so a single trade can't balloon absurdly.
+ */
 export function positionPnl(
   side: "buy" | "sell",
   entry: number,
   exit: number,
-  stakeMinor: number,
+  riskMinor: number,
+  slPct: number,
 ): number {
-  if (!(entry > 0)) return 0;
+  if (!(entry > 0) || !(slPct > 0)) return 0;
   const dir = side === "buy" ? 1 : -1;
-  const raw = Math.round(stakeMinor * ((exit - entry) / entry) * dir);
-  return Math.max(raw, -stakeMinor);
+  const moveFrac = ((exit - entry) / entry) * dir;
+  const normalized = moveFrac / slPct; // −1 ≈ stop-loss, +tp/sl ≈ take-profit
+  const clamped = Math.max(-1, Math.min(3, normalized));
+  return Math.round(riskMinor * clamped);
 }
 
 /** Latest allocation ledger account for a (user, provider) pair. */
@@ -183,6 +195,7 @@ export async function closeProviderPosition(
       );
 
     const entry = Number(pos.entryPrice);
+    const slPct = pos.stopLossPct ? Number(pos.stopLossPct) : 0.02;
     let settled = 0;
     let netTotal = 0;
     let feeTotal = 0;
@@ -191,7 +204,7 @@ export async function closeProviderPosition(
     const systemFees = await ensureSystemAccount(tx as unknown as Database, "system_fees", "USD");
 
     for (const m of mirrors) {
-      let pnl = positionPnl(m.side, entry, input.exitPrice, m.stakeMinor);
+      let pnl = positionPnl(m.side, entry, input.exitPrice, m.stakeMinor, slPct);
 
       // Never let a settlement drive a client's allocation account negative.
       if (mode === "live" && pnl < 0) {
@@ -360,9 +373,9 @@ export async function runEngineTick(
       const symbol = pick(symbols);
       const price = quotes[symbol]!;
       const side: "buy" | "sell" = Math.random() < 0.5 ? "buy" : "sell";
-      const sizePct = 0.02 + Math.random() * 0.06; // 2%–8% of each allocation
-      const stopLossPct = 0.008 + Math.random() * 0.012; // 0.8%–2.0%
-      const takeProfitPct = 0.012 + Math.random() * 0.02; // 1.2%–3.2%
+      const sizePct = 0.04 + Math.random() * 0.06; // risk 4%–10% of each allocation
+      const stopLossPct = 0.012 + Math.random() * 0.018; // 1.2%–3.0% adverse move = full risk
+      const takeProfitPct = 0.018 + Math.random() * 0.03; // 1.8%–4.8% (~1.5× the stop)
 
       const res = await openProviderPosition(db, {
         providerId: provider.id,
@@ -391,6 +404,8 @@ export type OpenCopyPosition = {
   side: "buy" | "sell";
   entryPrice: number;
   stakeMinor: number;
+  /** Stop-loss distance (fraction of price) — needed to mark P&L to the risk. */
+  slPct: number;
   provider: string;
   openedAt: string;
 };
@@ -403,6 +418,7 @@ export async function listOpenCopyPositions(
   const rows = await db
     .select({
       pos: copyPositions,
+      slPct: providerPositions.stopLossPct,
       providerName: signalProviders.name,
     })
     .from(copyPositions)
@@ -418,6 +434,7 @@ export async function listOpenCopyPositions(
     side: r.pos.side,
     entryPrice: Number(r.pos.entryPrice),
     stakeMinor: r.pos.stakeMinor,
+    slPct: r.slPct ? Number(r.slPct) : 0.02,
     provider: r.providerName,
     openedAt: new Date(r.pos.openedAt).toISOString(),
   }));

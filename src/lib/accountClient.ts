@@ -46,6 +46,7 @@ export type RealOpenPosition = {
   side: "buy" | "sell";
   entryPrice: number;
   stakeMinor: number;
+  slPct: number;
   provider: string;
   openedAt: string;
 };
@@ -239,15 +240,18 @@ export async function getQuotes(symbols: string[]): Promise<Record<string, numbe
 
 /**
  * Unrealized P&L on an open copied position at a live price, in USD minor units.
- * Mirrors the server's `positionPnl`: return on the staked amount, clamped so a
- * position can't show a loss deeper than its stake.
+ * Mirrors the server's `positionPnl`: the move is normalised against the stop
+ * distance, so P&L is sized to the amount risked (loss floored at the risk,
+ * gain capped at 3×).
  */
 export function unrealizedPnlMinor(
   pos: RealOpenPosition,
   price: number | undefined,
 ): number | null {
+  const slPct = pos.slPct > 0 ? pos.slPct : 0.02;
   if (price == null || !(pos.entryPrice > 0)) return null;
   const dir = pos.side === "buy" ? 1 : -1;
-  const raw = Math.round(pos.stakeMinor * ((price - pos.entryPrice) / pos.entryPrice) * dir);
-  return Math.max(raw, -pos.stakeMinor);
+  const moveFrac = ((price - pos.entryPrice) / pos.entryPrice) * dir;
+  const clamped = Math.max(-1, Math.min(3, moveFrac / slPct));
+  return Math.round(pos.stakeMinor * clamped);
 }
