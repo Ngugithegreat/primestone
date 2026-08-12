@@ -27,6 +27,7 @@ import { SegmentedControl } from "@/components/ui/Field";
 import { money, num, signed } from "@/lib/format";
 import { getInstrument, pnlOf } from "@/lib/market";
 import { openPnl, portfolioStats, usedMargin, useStore } from "@/lib/store";
+import { RealPortfolio } from "./RealPortfolio";
 import { getTrader } from "@/lib/traders";
 import { cn, initialsOf } from "@/lib/utils";
 
@@ -42,6 +43,13 @@ const SLICE_COLORS = [
 ];
 
 export function PortfolioView() {
+  const sessionMode = useStore((s) => s.sessionMode);
+  // On a real account, show the real ledger portfolio — never the demo numbers.
+  if (sessionMode === "real") return <RealPortfolio />;
+  return <DemoPortfolio />;
+}
+
+function DemoPortfolio() {
   const { prices } = useMarket();
   const user = useStore((s) => s.user);
   const balance = useStore((s) => s.balance);

@@ -111,6 +111,25 @@ export function EngineMonitor() {
     }
   };
 
+  const [testEmail, setTestEmail] = useState("");
+  const [testAmount, setTestAmount] = useState("1000");
+  const [testMsg, setTestMsg] = useState<string>();
+  const [testBusy, setTestBusy] = useState<string | null>(null);
+
+  const runTest = async (action: "credit" | "blow") => {
+    setTestBusy(action);
+    setTestMsg(undefined);
+    const res = await fetch("/api/admin/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, email: testEmail.trim() || undefined, amount: Number(testAmount) }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setTestBusy(null);
+    setTestMsg(res.ok ? (d.message ?? "Done.") : (d.error ?? "Failed."));
+    await load();
+  };
+
   const act = useCallback(
     async (payload: Record<string, unknown>, key: string): Promise<boolean> => {
       setBusy(key);
@@ -383,6 +402,44 @@ export function EngineMonitor() {
           </div>
         </div>
       )}
+
+      {/* Testing tools — remove before public launch */}
+      <div className="rounded-2xl border border-amber-450/30 bg-amber-450/[0.05] p-4">
+        <p className="text-[13px] font-semibold text-amber-300">Testing tools</p>
+        <p className="mb-3 text-[11.5px] text-amber-200/70">
+          For pre-launch testing only — remove before you go public. No real payment involved.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="user email (blank = all)"
+            className="w-56"
+          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-slate-500">$</span>
+            <Input
+              value={testAmount}
+              onChange={(e) => setTestAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              className="w-28 pl-6"
+            />
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => runTest("credit")} disabled={testBusy !== null}>
+            {testBusy === "credit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Add test funds
+          </Button>
+          <button
+            onClick={() => runTest("blow")}
+            disabled={testBusy !== null}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.1] px-3.5 py-2 text-[12.5px] font-semibold text-rose-300 hover:bg-rose-500/[0.18]"
+          >
+            {testBusy === "blow" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Blow account{testEmail.trim() ? "" : "s (all)"}
+          </button>
+        </div>
+        {testMsg && <p className="mt-2 text-[12px] text-amber-200">{testMsg}</p>}
+      </div>
     </div>
   );
 }
