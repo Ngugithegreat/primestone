@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, BadgeCheck, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
-import { Badge, Card } from "@/components/ui/Primitives";
+import { Card } from "@/components/ui/Primitives";
 import { usd, withdrawRequest } from "@/lib/accountClient";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -66,27 +66,14 @@ export function WithdrawPanel({
           className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full blur-[70px]"
           style={{ background: "radial-gradient(closest-side, rgba(99,102,241,0.18), transparent 70%)" }}
         />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris-500/25 bg-iris-500/10">
-              <ArrowUpRight className="h-4.5 w-4.5 text-iris-300" />
-            </span>
-            <div>
-              <h2 className="text-[15px] font-semibold text-white">Withdraw funds</h2>
-              <p className="text-[12px] text-slate-500">Cash out to your M-Pesa.</p>
-            </div>
+        <div className="relative flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris-500/25 bg-iris-500/10">
+            <ArrowUpRight className="h-4.5 w-4.5 text-iris-300" />
+          </span>
+          <div>
+            <h2 className="text-[15px] font-semibold text-white">Withdraw funds</h2>
+            <p className="text-[12px] text-slate-500">Cash out to your M-Pesa.</p>
           </div>
-          {verified ? (
-            <Badge tone="mint">
-              <BadgeCheck className="h-3 w-3" />
-              Verified
-            </Badge>
-          ) : (
-            <Badge tone="amber">
-              <ShieldAlert className="h-3 w-3" />
-              Verification required
-            </Badge>
-          )}
         </div>
 
         {/* ---- Verify step (shown after submit when unverified) ------------- */}
@@ -182,14 +169,6 @@ export function WithdrawPanel({
 
             {error && (
               <p className="text-[12.5px] text-rose-400">{error}</p>
-            )}
-
-            {!verified && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-450/25 bg-amber-450/[0.06] p-3 text-[12px] text-amber-300">
-                <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                You can fill this in now, but withdrawals require a verified account — you&rsquo;ll be
-                asked to verify before it&rsquo;s submitted.
-              </div>
             )}
 
             <Button onClick={submit} disabled={state === "busy" || noFunds} className="w-full">

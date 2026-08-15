@@ -35,6 +35,7 @@ import {
   type RealProvider,
 } from "@/lib/accountClient";
 import { useStore } from "@/lib/store";
+import { WithdrawPanel } from "./WithdrawPanel";
 import { cn, initialsOf } from "@/lib/utils";
 
 /**
@@ -124,21 +125,19 @@ export function RealWallet() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DepositPanel defaultPhone={user?.phone ?? ""} onCredited={refresh} />
-        <Providers
-          providers={providers}
+        <WithdrawPanel
           balanceMinor={balanceMinor}
-          onSubscribed={refresh}
-          pushToast={pushToast}
+          kycStatus={account?.kycStatus ?? "unverified"}
+          onDone={refresh}
         />
       </div>
 
-      <p className="text-center text-[12.5px] text-slate-500">
-        To cash out, head to your{" "}
-        <a href="/portfolio" className="text-mint-400 hover:text-mint-300">
-          Portfolio
-        </a>{" "}
-        → Withdraw funds.
-      </p>
+      <Providers
+        providers={providers}
+        balanceMinor={balanceMinor}
+        onSubscribed={refresh}
+        pushToast={pushToast}
+      />
 
       <Allocations account={account} onChanged={refresh} pushToast={pushToast} />
       <History account={account} />

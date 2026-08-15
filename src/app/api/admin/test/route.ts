@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { isAdminAuthed } from "@/server/adminAuth";
 import { blowAllocations, testCredit } from "@/server/testTools";
+import { clearBlowSchedule, getBlowSchedule, setBlowSchedule } from "@/server/settings";
 
 /** TESTING-ONLY admin actions. Remove before public launch. */
 export async function POST(req: Request) {
@@ -27,6 +28,28 @@ export async function POST(req: Request) {
     const email = typeof body?.email === "string" && body.email ? body.email : undefined;
     const res = await blowAllocations(db, email);
     return NextResponse.json({ ok: true, message: `Blew ${res.blown} account${res.blown === 1 ? "" : "s"}.` });
+  }
+
+  if (action === "schedule-blow") {
+    const minutes = Number(body?.minutes);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return NextResponse.json({ error: "Enter minutes from now (e.g. 2)." }, { status: 400 });
+    }
+    const email = typeof body?.email === "string" && body.email ? body.email : null;
+    const at = Date.now() + minutes * 60_000;
+    await setBlowSchedule(db, at, email);
+    const who = email ?? "all accounts";
+    return NextResponse.json({ ok: true, message: `Scheduled: ${who} will blow in ${minutes} min.`, at });
+  }
+
+  if (action === "cancel-blow") {
+    await clearBlowSchedule(db);
+    return NextResponse.json({ ok: true, message: "Scheduled blow cancelled." });
+  }
+
+  if (action === "blow-status") {
+    const s = await getBlowSchedule(db);
+    return NextResponse.json({ ok: true, schedule: s });
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });

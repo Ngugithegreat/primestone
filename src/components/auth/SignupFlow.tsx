@@ -8,17 +8,13 @@ import { useMemo, useState } from "react";
 import { AuthLayout } from "./AuthLayout";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
+import { COUNTRIES } from "@/lib/countries";
 import { Badge } from "@/components/ui/Primitives";
 import { ACCOUNT_TYPES, LEVERAGE_OPTIONS, type AccountTypeId } from "@/lib/accounts";
 import { useStore } from "@/lib/store";
 import { apiRegister } from "@/lib/authClient";
 import { cn } from "@/lib/utils";
 
-const COUNTRIES = [
-  "Kenya", "Nigeria", "South Africa", "Ghana", "Tanzania", "Uganda",
-  "United Kingdom", "Germany", "United Arab Emirates", "India",
-  "Singapore", "Malaysia", "Brazil", "Canada", "Australia",
-];
 
 const EXPERIENCE = [
   { value: "new", label: "New to trading", hint: "Never placed a trade" },

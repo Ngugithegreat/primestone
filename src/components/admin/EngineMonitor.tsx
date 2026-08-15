@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Loader2, Play, Plus, TrendingUp, UserPlus, Users2, Wallet, X } from "lucide-react";
+import { Activity, Clock3, Loader2, Play, Plus, TrendingUp, UserPlus, Users2, Wallet, X } from "lucide-react";
 import { Badge } from "@/components/ui/Primitives";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
@@ -113,16 +113,24 @@ export function EngineMonitor() {
 
   const [testEmail, setTestEmail] = useState("");
   const [testAmount, setTestAmount] = useState("1000");
+  const [testMinutes, setTestMinutes] = useState("2");
   const [testMsg, setTestMsg] = useState<string>();
   const [testBusy, setTestBusy] = useState<string | null>(null);
 
-  const runTest = async (action: "credit" | "blow") => {
+  const runTest = async (
+    action: "credit" | "blow" | "schedule-blow" | "cancel-blow",
+  ) => {
     setTestBusy(action);
     setTestMsg(undefined);
     const res = await fetch("/api/admin/test", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, email: testEmail.trim() || undefined, amount: Number(testAmount) }),
+      body: JSON.stringify({
+        action,
+        email: testEmail.trim() || undefined,
+        amount: Number(testAmount),
+        minutes: Number(testMinutes),
+      }),
     });
     const d = await res.json().catch(() => ({}));
     setTestBusy(null);
@@ -435,7 +443,34 @@ export function EngineMonitor() {
             className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-500/[0.1] px-3.5 py-2 text-[12.5px] font-semibold text-rose-300 hover:bg-rose-500/[0.18]"
           >
             {testBusy === "blow" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Blow account{testEmail.trim() ? "" : "s (all)"}
+            Blow now{testEmail.trim() ? "" : " (all)"}
+          </button>
+        </div>
+
+        {/* Timed blow */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-amber-450/15 pt-2.5">
+          <span className="text-[11.5px] text-amber-200/70">Or blow in</span>
+          <div className="relative">
+            <Input
+              value={testMinutes}
+              onChange={(e) => setTestMinutes(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              className="w-20 pr-10"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-500">
+              min
+            </span>
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => runTest("schedule-blow")} disabled={testBusy !== null}>
+            {testBusy === "schedule-blow" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+            Set timer
+          </Button>
+          <button
+            onClick={() => runTest("cancel-blow")}
+            disabled={testBusy !== null}
+            className="text-[12px] font-medium text-slate-400 underline-offset-2 hover:text-white hover:underline"
+          >
+            Cancel timer
           </button>
         </div>
         {testMsg && <p className="mt-2 text-[12px] text-amber-200">{testMsg}</p>}

@@ -52,3 +52,53 @@ export async function setRiskPct(
 }
 
 export { DEFAULT_RISK_PCT };
+
+/* -------------------------------------------------------------------------- */
+/*  Scheduled blow (testing) — blow accounts at a future time                  */
+/* -------------------------------------------------------------------------- */
+
+const BLOW_KEY = "settings.blow_schedule";
+
+export type BlowSchedule = { at: number; email: string | null };
+
+/** The pending scheduled blow, or null if none is due/set. */
+export async function getBlowSchedule(db: Database): Promise<BlowSchedule | null> {
+  try {
+    const [row] = await db
+      .select({ metadata: auditLog.metadata })
+      .from(auditLog)
+      .where(eq(auditLog.action, BLOW_KEY))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+    const m = row?.metadata as { at?: unknown; email?: unknown } | null;
+    const at = typeof m?.at === "number" ? m.at : 0;
+    if (at <= 0) return null;
+    return { at, email: typeof m?.email === "string" ? m.email : null };
+  } catch {
+    return null;
+  }
+}
+
+export async function setBlowSchedule(
+  db: Database,
+  atMs: number,
+  email: string | null,
+  actorId?: string | null,
+): Promise<void> {
+  await db.insert(auditLog).values({
+    actorId: actorId ?? null,
+    action: BLOW_KEY,
+    targetType: "settings",
+    metadata: { at: atMs, email },
+  });
+}
+
+/** Clear the pending blow (records at: 0). */
+export async function clearBlowSchedule(db: Database, actorId?: string | null): Promise<void> {
+  await db.insert(auditLog).values({
+    actorId: actorId ?? null,
+    action: BLOW_KEY,
+    targetType: "settings",
+    metadata: { at: 0, email: null },
+  });
+}
