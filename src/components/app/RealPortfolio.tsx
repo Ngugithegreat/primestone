@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PiggyBank, TrendingUp, Users, Wallet as WalletIcon } from "lucide-react";
 import { StatTile } from "./StatTile";
 import { LiveCopiedTrades } from "./LiveCopiedTrades";
+import { WithdrawPanel } from "./WithdrawPanel";
 import { Badge, Card } from "@/components/ui/Primitives";
 import { usd } from "@/lib/accountClient";
 import { useRealAccount } from "@/lib/useRealAccount";
@@ -53,6 +54,12 @@ export function RealPortfolio() {
       </div>
 
       <LiveCopiedTrades positions={real.openPositions} />
+
+      <WithdrawPanel
+        balanceMinor={real.balanceMinor}
+        kycStatus={real.account?.kycStatus ?? "unverified"}
+        onDone={real.refresh}
+      />
 
       {/* Subscriptions */}
       <Card className="p-6">

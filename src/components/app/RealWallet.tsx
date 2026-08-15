@@ -31,7 +31,6 @@ import {
   mpesaDeposit,
   mpesaStatus,
   subscribeToProvider,
-  withdrawRequest,
   type AccountSnapshot,
   type RealProvider,
 } from "@/lib/accountClient";
@@ -125,20 +124,21 @@ export function RealWallet() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DepositPanel defaultPhone={user?.phone ?? ""} onCredited={refresh} />
-        <Withdraw
-          defaultPhone={user?.phone ?? ""}
+        <Providers
+          providers={providers}
           balanceMinor={balanceMinor}
-          kycStatus={account?.kycStatus ?? "unverified"}
-          onDone={refresh}
+          onSubscribed={refresh}
+          pushToast={pushToast}
         />
       </div>
 
-      <Providers
-        providers={providers}
-        balanceMinor={balanceMinor}
-        onSubscribed={refresh}
-        pushToast={pushToast}
-      />
+      <p className="text-center text-[12.5px] text-slate-500">
+        To cash out, head to your{" "}
+        <a href="/portfolio" className="text-mint-400 hover:text-mint-300">
+          Portfolio
+        </a>{" "}
+        → Withdraw funds.
+      </p>
 
       <Allocations account={account} onChanged={refresh} pushToast={pushToast} />
       <History account={account} />
@@ -374,153 +374,6 @@ function MpesaDeposit({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Withdraw                                                                   */
-/* -------------------------------------------------------------------------- */
-
-function Withdraw({
-  defaultPhone,
-  balanceMinor,
-  kycStatus,
-  onDone,
-}: {
-  defaultPhone: string;
-  balanceMinor: number;
-  kycStatus: string;
-  onDone: () => Promise<void>;
-}) {
-  const verified = kycStatus === "verified";
-  const [amount, setAmount] = useState<number>(0);
-  const [phone, setPhone] = useState(defaultPhone);
-  const [state, setState] = useState<"idle" | "busy" | "done" | "failed">("idle");
-  const [message, setMessage] = useState<string>();
-
-  const maxUsd = Math.floor(balanceMinor / 100);
-
-  const submit = async () => {
-    if (amount <= 0) {
-      setState("failed");
-      setMessage("Enter an amount to withdraw.");
-      return;
-    }
-    if (amount > maxUsd) {
-      setState("failed");
-      setMessage(`You can withdraw up to ${usd(balanceMinor)}.`);
-      return;
-    }
-    setState("busy");
-    setMessage(undefined);
-    const res = await withdrawRequest({ amount, phone });
-    if (!res.ok) {
-      setState("failed");
-      setMessage(res.error);
-      return;
-    }
-    setState("done");
-    setMessage("Withdrawal requested. We'll send it to your M-Pesa shortly.");
-    await onDone();
-  };
-
-  return (
-    <Card className="p-6">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.04]">
-          <ArrowRight className="h-4.5 w-4.5 rotate-[-45deg] text-slate-300" />
-        </span>
-        <div>
-          <h2 className="text-[15px] font-semibold text-white">Withdraw to M-Pesa</h2>
-          <p className="text-[12px] text-slate-500">Cash out your available balance.</p>
-        </div>
-      </div>
-
-      {!verified ? (
-        <div className="mt-5 grid place-items-center rounded-xl border border-amber-450/25 bg-amber-450/[0.05] px-4 py-8 text-center">
-          <ShieldCheck className="h-8 w-8 text-amber-400" />
-          <p className="mt-3 text-[13.5px] font-medium text-white">Verify your identity to withdraw</p>
-          <p className="mt-1 max-w-xs text-[12.5px] text-slate-400">
-            Withdrawals require a verified account. It only takes a minute.
-          </p>
-          <a
-            href="/verify"
-            className="focus-ring mt-4 inline-flex h-9 items-center gap-1.5 rounded-xl bg-mint-500 px-4 text-[13px] font-semibold text-ink-950 hover:bg-mint-400"
-          >
-            Verify identity
-            <ArrowRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      ) : state === "done" ? (
-        <div className="mt-5 grid place-items-center rounded-xl border border-mint-500/25 bg-mint-500/[0.07] px-4 py-8 text-center">
-          <CheckCircle2 className="h-9 w-9 text-mint-400" />
-          <p className="mt-3 text-[14px] font-semibold text-white">Withdrawal requested</p>
-          <p className="mt-1 text-[12.5px] text-slate-400">{message}</p>
-          <button
-            onClick={() => {
-              setState("idle");
-              setAmount(0);
-            }}
-            className="mt-4 text-[13px] font-medium text-mint-400 hover:text-mint-300"
-          >
-            Make another request
-          </button>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <Field label="Amount (USD)" htmlFor="wd-amount" hint={`Available ${usd(balanceMinor)}`}>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-slate-400">
-                $
-              </span>
-              <Input
-                id="wd-amount"
-                type="number"
-                min={0}
-                max={maxUsd}
-                value={amount || ""}
-                onChange={(e) => setAmount(Math.max(0, Math.round(Number(e.target.value))))}
-                disabled={state === "busy"}
-                className="pl-7"
-                placeholder="0"
-              />
-            </div>
-          </Field>
-          <button
-            type="button"
-            disabled={state === "busy" || maxUsd <= 0}
-            onClick={() => setAmount(maxUsd)}
-            className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[12.5px] text-slate-300 transition-colors hover:bg-white/[0.06] disabled:opacity-40"
-          >
-            Withdraw all · {usd(balanceMinor)}
-          </button>
-
-          <Field label="M-Pesa phone" htmlFor="wd-phone" hint="Safaricom number">
-            <Input
-              id="wd-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="07XX XXX XXX"
-              disabled={state === "busy"}
-            />
-          </Field>
-
-          {message && state === "failed" && (
-            <div className="flex items-start gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] p-3 text-[12.5px] text-rose-300">
-              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {message}
-            </div>
-          )}
-
-          <Button onClick={submit} disabled={state === "busy" || maxUsd <= 0} variant="secondary" className="w-full">
-            {state === "busy" && <Loader2 className="h-4 w-4 animate-spin" />}
-            {maxUsd <= 0 ? "No funds to withdraw" : amount > 0 ? `Withdraw $${amount.toLocaleString()}` : "Withdraw"}
-          </Button>
-          <p className="text-center text-[11px] text-slate-600">
-            Requests are reviewed and paid to your M-Pesa, usually within a few hours.
-          </p>
-        </div>
-      )}
-    </Card>
-  );
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Crypto deposit (NOWPayments)                                               */
