@@ -52,8 +52,36 @@ export function apiRegister(input: {
   return post("/api/auth/register", input);
 }
 
-export function apiLogin(email: string, password: string) {
-  return post("/api/auth/login", { email, password });
+export type LoginResult =
+  | { ok: true; user: ApiUser }
+  | { ok: false; twoFactorRequired: true; error?: string }
+  | { ok: false; twoFactorRequired?: false; error: string };
+
+/**
+ * Sign in. When the account has 2FA on, the first call (no code) comes back with
+ * `twoFactorRequired` and NO session — the caller collects the authenticator
+ * code and calls again with it.
+ */
+export async function apiLogin(
+  email: string,
+  password: string,
+  code?: string,
+): Promise<LoginResult> {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password, code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data?.twoFactorRequired) {
+      return { ok: false, twoFactorRequired: true, error: data.error };
+    }
+    if (!res.ok) return { ok: false, error: data.error ?? "Something went wrong." };
+    return { ok: true, user: data.user };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
 }
 
 export async function apiForgotPassword(email: string): Promise<{ ok: boolean; error?: string }> {
@@ -91,6 +119,68 @@ export async function apiResetPassword(
 
 export async function apiLogout() {
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+}
+
+/* ---- Two-factor authentication ------------------------------------------- */
+
+export async function twoFactorStatus(): Promise<{ enabled: boolean }> {
+  try {
+    const res = await fetch("/api/auth/2fa", { cache: "no-store" });
+    if (!res.ok) return { enabled: false };
+    return await res.json();
+  } catch {
+    return { enabled: false };
+  }
+}
+
+/** Begin setup — returns the QR data URL, otpauth URI and the raw secret. */
+export async function twoFactorSetup(): Promise<
+  { ok: true; qr: string; secret: string; otpauthUrl: string } | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch("/api/auth/2fa", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Could not start setup." };
+    return { ok: true, qr: data.qr, secret: data.secret, otpauthUrl: data.otpauthUrl };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
+/** Confirm the setup code and switch 2FA on — returns one-time backup codes. */
+export async function twoFactorEnable(
+  code: string,
+): Promise<{ ok: true; backupCodes: string[] } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("/api/auth/2fa/enable", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "That code isn't right." };
+    return { ok: true, backupCodes: data.backupCodes ?? [] };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
+/** Turn 2FA off after verifying a current code (or backup code). */
+export async function twoFactorDisable(
+  code: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("/api/auth/2fa/disable", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "That code isn't right." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
 }
 
 /**

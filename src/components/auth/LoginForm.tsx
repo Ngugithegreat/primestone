@@ -18,6 +18,8 @@ export function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [twoFactor, setTwoFactor] = useState(false);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -35,10 +37,25 @@ export function LoginForm() {
       setError("Enter your password.");
       return;
     }
+    if (twoFactor && !code.trim()) {
+      setError("Enter your authentication code.");
+      return;
+    }
 
     setBusy(true);
     setError(undefined);
-    const result = await apiLogin(email.trim().toLowerCase(), password);
+    const result = await apiLogin(
+      email.trim().toLowerCase(),
+      password,
+      twoFactor ? code.replace(/\s/g, "") : undefined,
+    );
+    if (!result.ok && result.twoFactorRequired) {
+      // Reveal the code step (and surface any "wrong code" message on retry).
+      setBusy(false);
+      setTwoFactor(true);
+      setError(result.error);
+      return;
+    }
     if (!result.ok) {
       setBusy(false);
       setError(result.error);
@@ -104,8 +121,27 @@ export function LoginForm() {
           />
         </Field>
 
+        {twoFactor && (
+          <Field
+            label="Authentication code"
+            htmlFor="code"
+            hint="From your authenticator app"
+          >
+            <Input
+              id="code"
+              inputMode="numeric"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+              autoComplete="one-time-code"
+              className="text-center text-[17px] tracking-[0.3em]"
+            />
+          </Field>
+        )}
+
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? "Signing in…" : twoFactor ? "Verify & sign in" : "Sign in"}
           {!busy && <ArrowRight className="h-4 w-4" />}
         </Button>
 

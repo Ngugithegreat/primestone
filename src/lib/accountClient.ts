@@ -68,6 +68,8 @@ export type AccountSnapshot = {
   currency: string;
   balanceMinor: number;
   kycStatus: string;
+  /** Whether the user has two-factor auth switched on (gates withdrawals). */
+  twoFactor: boolean;
   allocations: RealAllocation[];
   payments: RealPayment[];
   realizedPnlMinor: number;
@@ -195,13 +197,28 @@ export async function subscribeToProvider(input: {
   return { ok: true as const, allocationId: data.allocationId as string };
 }
 
-export async function withdrawRequest(input: { amount: number; phone?: string }) {
+export type WithdrawResult =
+  | { ok: true; paymentId: string }
+  | { ok: false; twoFactorRequired: true; error?: string }
+  | { ok: false; twoFactorRequired?: false; error: string };
+
+export async function withdrawRequest(input: {
+  amount: number;
+  method?: "mpesa" | "crypto";
+  phone?: string;
+  address?: string;
+  code?: string;
+}): Promise<WithdrawResult> {
   const res = await fetch("/api/payments/withdraw", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
   const data = await res.json().catch(() => ({}));
+  // Server asks for a 2FA code before locking funds (HTTP 200 with a flag).
+  if (data?.twoFactorRequired) {
+    return { ok: false as const, twoFactorRequired: true as const, error: data.error };
+  }
   if (!res.ok) return { ok: false as const, error: data.error ?? "Withdrawal failed." };
   return { ok: true as const, paymentId: data.paymentId as string };
 }

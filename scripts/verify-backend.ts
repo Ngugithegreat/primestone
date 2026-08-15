@@ -47,6 +47,9 @@ import {
   openProviderPosition,
 } from "../src/server/copyEngine";
 import { ledgerEntries } from "../src/db/schema";
+import { createHmac } from "node:crypto";
+import { generateSecret, verifyTotp } from "../src/server/totp";
+import { begin2FASetup, enable2FA, is2FAEnabled, verify2FA, disable2FA } from "../src/server/twoFactor";
 
 let pass = 0;
 let fail = 0;
@@ -58,6 +61,36 @@ function check(label: string, cond: boolean, detail = "") {
     fail++;
     console.error(`  ✗ ${label} ${detail}`);
   }
+}
+
+/** Compute the current 6-digit TOTP for a base32 secret (mirrors totp.ts). */
+function currentTotp(secret: string): string {
+  const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const clean = secret.toUpperCase().replace(/=+$/, "").replace(/\s/g, "");
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const c of clean) {
+    const idx = B32.indexOf(c);
+    if (idx === -1) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  const counter = Math.floor(Date.now() / 1000 / 30);
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(counter));
+  const hmac = createHmac("sha1", Buffer.from(bytes)).update(buf).digest();
+  const offset = hmac[hmac.length - 1]! & 0xf;
+  const bin =
+    ((hmac[offset]! & 0x7f) << 24) |
+    ((hmac[offset + 1]! & 0xff) << 16) |
+    ((hmac[offset + 2]! & 0xff) << 8) |
+    (hmac[offset + 3]! & 0xff);
+  return String(bin % 1_000_000).padStart(6, "0");
 }
 
 /** Assert the entire ledger nets to zero — the core money invariant. */
@@ -366,6 +399,39 @@ async function main() {
     `(before ${beforePaper}, after ${afterPaper})`,
   );
   await assertLedgerBalanced(db, "after paper trade");
+
+  /* --- Two-factor authentication ---------------------------------------- */
+  console.log("\nTwo-factor authentication");
+  const secret = generateSecret();
+  check("TOTP: fresh secret is base32", /^[A-Z2-7]+$/.test(secret));
+  check("TOTP: current code verifies", verifyTotp(secret, currentTotp(secret)));
+  check("TOTP: wrong code rejected", !verifyTotp(secret, "000000"));
+
+  check("2FA off by default", !(await is2FAEnabled(db, userId)));
+  await begin2FASetup(db, userId, secret);
+  const badEnable = await enable2FA(db, userId, "111111");
+  check("2FA enable rejects a bad setup code", !badEnable.ok);
+  const good = await enable2FA(db, userId, currentTotp(secret));
+  check("2FA enable succeeds with a valid code", good.ok);
+  check(
+    "2FA enable returns 8 backup codes",
+    good.ok && good.backupCodes.length === 8,
+  );
+  check("2FA now enabled", await is2FAEnabled(db, userId));
+  check("2FA verify accepts a live TOTP", await verify2FA(db, userId, currentTotp(secret)));
+  check("2FA verify rejects a wrong code", !(await verify2FA(db, userId, "000000")));
+
+  if (good.ok) {
+    const backup = good.backupCodes[0]!;
+    check("2FA verify consumes a backup code", await verify2FA(db, userId, backup));
+    check("2FA backup code can't be reused", !(await verify2FA(db, userId, backup)));
+  }
+
+  const badDisable = await disable2FA(db, userId, "000000");
+  check("2FA disable rejects a bad code", !badDisable.ok);
+  const okDisable = await disable2FA(db, userId, currentTotp(secret));
+  check("2FA disable succeeds with a valid code", okDisable.ok);
+  check("2FA off after disable", !(await is2FAEnabled(db, userId)));
 
   /* --- Summary ---------------------------------------------------------- */
   console.log(`\n${pass} passed, ${fail} failed\n`);

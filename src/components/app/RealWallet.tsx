@@ -128,6 +128,7 @@ export function RealWallet() {
         <WithdrawPanel
           balanceMinor={balanceMinor}
           kycStatus={account?.kycStatus ?? "unverified"}
+          twoFactor={account?.twoFactor ?? false}
           onDone={refresh}
         />
       </div>

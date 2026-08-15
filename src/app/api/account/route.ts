@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { currentUser } from "@/server/session";
+import { is2FAEnabled } from "@/server/twoFactor";
 import { clientCashBalance } from "@/server/ledger";
 import { listAllocations } from "@/server/allocations";
 import { listPayments } from "@/server/payments";
@@ -17,7 +18,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getDb();
-  const [cashMinor, allocations, payments, openPositions, closedPositions, realizedPnlMinor, allocValues] =
+  const [cashMinor, allocations, payments, openPositions, closedPositions, realizedPnlMinor, allocValues, twoFactor] =
     await Promise.all([
       clientCashBalance(db, user.id),
       listAllocations(db, user.id),
@@ -26,12 +27,14 @@ export async function GET() {
       listClosedCopyPositions(db, user.id),
       realizedCopyPnl(db, user.id),
       activeAllocationValues(db, user.id),
+      is2FAEnabled(db, user.id),
     ]);
 
   return NextResponse.json({
     currency: "USD",
     balanceMinor: cashMinor,
     kycStatus: user.kycStatusCache,
+    twoFactor,
     allocations: allocations.map((a) => ({
       id: a.allocation.id,
       amountMinor: a.allocation.amount,

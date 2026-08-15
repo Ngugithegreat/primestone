@@ -18,6 +18,7 @@ export async function GET() {
     id: r.payment.id,
     amountMinor: r.payment.amount,
     currency: r.payment.currency,
+    provider: r.payment.provider,
     destination: r.payment.destination,
     status: r.payment.status,
     externalRef: r.payment.externalRef,

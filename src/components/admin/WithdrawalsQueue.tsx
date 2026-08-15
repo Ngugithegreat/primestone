@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Loader2, Phone, X } from "lucide-react";
+import { Bitcoin, Check, Loader2, Phone, X } from "lucide-react";
 import { Badge } from "@/components/ui/Primitives";
 import { Input } from "@/components/ui/Field";
 import { cn, initialsOf } from "@/lib/utils";
@@ -10,6 +10,7 @@ type Withdrawal = {
   id: string;
   amountMinor: number;
   currency: string;
+  provider: string;
   destination: string | null;
   status: string;
   externalRef: string | null;
@@ -114,10 +115,21 @@ export function WithdrawalsQueue() {
                       {initialsOf(w.user.name)}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[13.5px] font-medium text-white">{w.user.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[13.5px] font-medium text-white">{w.user.name}</p>
+                        <Badge tone={w.provider === "crypto" ? "iris" : "slate"}>
+                          {w.provider === "crypto" ? "USDT" : "M-Pesa"}
+                        </Badge>
+                      </div>
                       <p className="flex items-center gap-1.5 truncate text-[11.5px] text-slate-500">
-                        <Phone className="h-3 w-3" />
-                        {w.destination ?? w.user.phone}
+                        {w.provider === "crypto" ? (
+                          <Bitcoin className="h-3 w-3" />
+                        ) : (
+                          <Phone className="h-3 w-3" />
+                        )}
+                        <span className={w.provider === "crypto" ? "font-mono" : ""}>
+                          {w.destination ?? w.user.phone}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -171,12 +183,19 @@ export function WithdrawalsQueue() {
                       <>
                         <p className="text-[12.5px] text-slate-300">
                           Confirm you have sent <span className="font-semibold text-white">{usd(w.amountMinor)}</span> to{" "}
-                          <span className="font-semibold text-white">{w.destination ?? w.user.phone}</span> via M-Pesa.
+                          <span className={cn("font-semibold text-white", w.provider === "crypto" && "break-all font-mono")}>
+                            {w.destination ?? w.user.phone}
+                          </span>{" "}
+                          {w.provider === "crypto" ? "via USDT (TRC-20)." : "via M-Pesa."}
                         </p>
                         <Input
                           value={refInput}
                           onChange={(e) => setRefInput(e.target.value)}
-                          placeholder="M-Pesa confirmation code (optional)"
+                          placeholder={
+                            w.provider === "crypto"
+                              ? "Transaction hash (optional)"
+                              : "M-Pesa confirmation code (optional)"
+                          }
                           className="mt-2.5"
                         />
                         <div className="mt-3 flex gap-2">

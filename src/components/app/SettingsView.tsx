@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Toggle } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Badge, Card, CardHeader } from "@/components/ui/Primitives";
+import { TwoFactorCard } from "./TwoFactorCard";
 import { ACCOUNT_TYPES, LEVERAGE_OPTIONS, getAccountType, type AccountTypeId } from "@/lib/accounts";
 import { dateShort, money } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -32,7 +33,6 @@ export function SettingsView() {
     emailSignals: true,
     pushSignals: true,
     marketing: false,
-    twoFactor: false,
     confirmOrders: true,
   });
   const [resetOpen, setResetOpen] = useState(false);
@@ -271,18 +271,7 @@ export function SettingsView() {
               action={<ShieldCheck className="h-4 w-4 text-slate-500" />}
             />
             <div className="space-y-2.5 p-4">
-              <Toggle
-                checked={prefs.twoFactor}
-                onChange={(v) => {
-                  setPrefs({ ...prefs, twoFactor: v });
-                  pushToast({
-                    tone: "info",
-                    title: v ? "Two-factor enabled" : "Two-factor disabled",
-                  });
-                }}
-                label="Two-factor authentication"
-                description="Require a code from your authenticator app at sign-in and before withdrawals."
-              />
+              <TwoFactorCard />
               <button className="focus-ring flex w-full items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-left transition-colors hover:bg-white/[0.05]">
                 <KeyRound className="h-4 w-4 shrink-0 text-slate-400" />
                 <span>
