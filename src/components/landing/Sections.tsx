@@ -34,6 +34,7 @@ import {
   Reveal,
 } from "@/components/ui/Primitives";
 import { TraderCard } from "@/components/traders/TraderCard";
+import { LiveCandles } from "./LiveCandles";
 import { ACCOUNT_TYPES } from "@/lib/accounts";
 import { COMPANY } from "@/lib/company";
 import { FEATURED_TRADERS, PLATFORM_STATS, TRADERS } from "@/lib/traders";
@@ -727,10 +728,6 @@ function ShowcaseFrame({ variant }: { variant: string }) {
 }
 
 function MockChart() {
-  const bars = [
-    38, 44, 41, 52, 48, 60, 57, 65, 61, 72, 68, 78, 74, 84, 80, 88, 92, 86, 95, 90, 99, 94,
-    103, 108, 101, 112,
-  ];
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -745,58 +742,7 @@ function MockChart() {
       </div>
 
       <div className="relative mt-4 h-52">
-        <svg viewBox="0 0 520 200" className="h-full w-full" preserveAspectRatio="none">
-          {[0, 1, 2, 3].map((i) => (
-            <line
-              key={i}
-              x1="0"
-              x2="520"
-              y1={i * 50 + 12}
-              y2={i * 50 + 12}
-              stroke="rgba(255,255,255,0.045)"
-            />
-          ))}
-          {bars.map((b, i) => {
-            // Each candle opens at the previous close, so the bodies chain
-            // together the way a real series does.
-            const open = i === 0 ? b - 4 : bars[i - 1]!;
-            const close = b;
-            const up = close >= open;
-            const yOf = (v: number) => 186 - v * 1.35;
-            const top = yOf(Math.max(open, close));
-            const bottom = yOf(Math.min(open, close));
-            const wick = 5 + (i % 4) * 3;
-            const cx = i * 20 + 11;
-            return (
-              <g key={i}>
-                <line
-                  x1={cx}
-                  x2={cx}
-                  y1={top - wick}
-                  y2={bottom + wick}
-                  stroke={up ? "#00dfa4" : "#f43f5e"}
-                  strokeWidth="1.2"
-                  opacity="0.75"
-                />
-                <rect
-                  x={cx - 5}
-                  y={top}
-                  width="10"
-                  height={Math.max(3, bottom - top)}
-                  rx="1.5"
-                  fill={up ? "#00dfa4" : "#f43f5e"}
-                  opacity="0.92"
-                />
-              </g>
-            );
-          })}
-        </svg>
-        <div className="absolute right-0 top-[26%] flex items-center gap-1.5">
-          <span className="h-px w-16 bg-mint-400/50" />
-          <span className="tnum rounded bg-mint-500 px-1.5 py-0.5 text-[10px] font-bold text-ink-950">
-            2412.60
-          </span>
-        </div>
+        <LiveCandles />
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
