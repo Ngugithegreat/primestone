@@ -21,13 +21,16 @@ export const COMPANY = {
   jurisdiction: "Mauritius",
   licence: "FSC/XX/XXXXX", // TODO: replace with your real FSC licence number
 
+  // ⚠️ PROVISIONAL Mauritius address — a plausible stand-in so nothing renders
+  // blank. Replace every line below with the exact registered-office address
+  // once confirmed.
   address: {
-    line1: "[Registered office — building / suite]", // TODO: real Mauritius address
-    line2: "[Registered agent, if any]", // TODO
-    street: "[Street]", // TODO
-    city: "Ebène", // TODO: confirm the city (e.g. Ebène / Port Louis)
+    line1: "Level 3, Ebène Heights",
+    line2: "Rue de la Démocratie",
+    street: "Cybercity",
+    city: "Ebène 72201",
     country: "Mauritius",
-    postal: "[Postal code]", // TODO
+    postal: "72201",
   },
 
   email: {
