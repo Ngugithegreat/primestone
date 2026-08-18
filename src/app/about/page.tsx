@@ -89,7 +89,7 @@ export default function AboutPage() {
             <p>
               Since {COMPANY.foundedYear} we have grown into a regulated platform serving
               hundreds of thousands of copiers across Africa, Asia, the Middle East and
-              beyond, from our home in Nairobi. The mission has not changed: make a
+              beyond, from our home in Mauritius. The mission has not changed: make a
               professional track record something you can inspect before you trust it.
             </p>
           </div>
@@ -130,11 +130,11 @@ export default function AboutPage() {
             <dl className="mt-5 space-y-2 border-t border-white/[0.06] pt-4 text-[13px]">
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Regulator</dt>
-                <dd className="text-right font-medium text-white">{COMPANY.regulatorShort}, Kenya</dd>
+                <dd className="text-right font-medium text-white">{COMPANY.regulatorShort}, {COMPANY.jurisdiction}</dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Licence number</dt>
-                <dd className="text-right font-medium text-white">{COMPANY.cmaLicence}</dd>
+                <dd className="text-right font-medium text-white">{COMPANY.licence}</dd>
               </div>
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Registered name</dt>

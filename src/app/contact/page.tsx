@@ -7,7 +7,7 @@ import { COMPANY } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Contact us",
-  description: `Get in touch with ${COMPANY.name} — support, compliance and general enquiries. Head office in Nairobi, Kenya.`,
+  description: `Get in touch with ${COMPANY.name} — support, compliance and general enquiries. Registered office in Mauritius.`,
 };
 
 const CHANNELS = [
@@ -30,7 +30,7 @@ const CHANNELS = [
     label: "Phone",
     value: COMPANY.phone,
     href: `tel:${COMPANY.phone.replace(/\s/g, "")}`,
-    note: "Mon–Fri, business hours EAT",
+    note: "Mon–Fri, business hours GMT+4",
   },
 ];
 
@@ -40,7 +40,7 @@ export default function ContactPage() {
       <PageHero
         eyebrow="Contact"
         title="Talk to a human"
-        lead="Questions about copying, your account, or becoming a strategy provider? Our Nairobi team is here to help. Most messages get a reply within one business day."
+        lead="Questions about copying, your account, or becoming a strategy provider? Our team is here to help. Most messages get a reply within one business day."
       />
 
       <section className="mx-auto max-w-6xl px-5 py-16 sm:px-8">

@@ -278,7 +278,7 @@ export function Hero() {
           >
             <LiveDot label="" />
             <span className="text-[12.5px] font-medium tracking-wide text-slate-200">
-              Regulated copy-trading · CMA Kenya
+              Regulated copy-trading · FSC Mauritius
             </span>
           </motion.div>
 

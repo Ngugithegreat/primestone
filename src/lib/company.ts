@@ -4,28 +4,30 @@
  * Everything user-facing — legal pages, the About and Contact pages, the
  * footer — reads from here, so updating a detail happens in exactly one place.
  *
- * ⚠️  Two values below are placeholders you MUST replace before this is public:
- *      - `cmaLicence`  — your real CMA licence number
- *      - `phone`       — your real switchboard number
- *     They are deliberately left as obvious placeholders rather than
- *     realistic-looking invented values.
+ * ⚠️  Several values below are placeholders you MUST replace before this is
+ *     public. They are deliberately left as obvious placeholders rather than
+ *     realistic-looking invented values:
+ *      - `licence`  — your real FSC (Mauritius) licence number
+ *      - `phone`    — your real switchboard number
+ *      - `address`  — the exact registered-office lines in Mauritius
  */
 export const COMPANY = {
   name: "PrimeStone Markets Ltd",
   shortName: "PrimeStone",
   foundedYear: 2019,
 
-  regulator: "Capital Markets Authority (CMA) of Kenya",
-  regulatorShort: "CMA",
-  cmaLicence: "CMA/IS/XXXX", // TODO: replace with your real CMA licence number
+  regulator: "Financial Services Commission (FSC) of Mauritius",
+  regulatorShort: "FSC",
+  jurisdiction: "Mauritius",
+  licence: "FSC/XX/XXXXX", // TODO: replace with your real FSC licence number
 
   address: {
-    line1: "Garden City Business Park",
-    line2: "3rd Floor, Block A",
-    street: "Thika Road",
-    city: "Nairobi",
-    country: "Kenya",
-    postal: "P.O. Box 00100, Nairobi",
+    line1: "[Registered office — building / suite]", // TODO: real Mauritius address
+    line2: "[Registered agent, if any]", // TODO
+    street: "[Street]", // TODO
+    city: "Ebène", // TODO: confirm the city (e.g. Ebène / Port Louis)
+    country: "Mauritius",
+    postal: "[Postal code]", // TODO
   },
 
   email: {
@@ -35,8 +37,8 @@ export const COMPANY = {
     complaints: "complaints@primestone.com",
   },
 
-  phone: "+254 20 000 0000", // TODO: replace with your real switchboard number
-  supportHours: "Monday to Friday, 08:00–18:00 EAT",
+  phone: "+230 000 0000", // TODO: replace with your real switchboard number
+  supportHours: "Monday to Friday, 08:00–18:00 GMT+4",
 
   socials: {
     x: "https://x.com/primestone",

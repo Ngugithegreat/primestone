@@ -14,7 +14,7 @@ const SECTIONS: LegalSection[] = [
       <p key="1">
         These Terms of Service (&ldquo;Terms&rdquo;) are a legal agreement between you and{" "}
         {COMPANY.name} (&ldquo;{COMPANY.shortName}&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;), a company regulated by the{" "}
-        {COMPANY.regulator} under licence {COMPANY.cmaLicence}. By opening an account or using
+        {COMPANY.regulator} under licence {COMPANY.licence}. By opening an account or using
         the platform you confirm that you have read, understood and agree to be bound by
         these Terms.
       </p>,
@@ -121,8 +121,8 @@ const SECTIONS: LegalSection[] = [
     heading: "Governing law",
     body: [
       <p key="1">
-        These Terms are governed by the laws of Kenya, and the courts of Kenya have
-        exclusive jurisdiction over any dispute arising from them.
+        These Terms are governed by the laws of {COMPANY.jurisdiction}, and the courts of{" "}
+        {COMPANY.jurisdiction} have exclusive jurisdiction over any dispute arising from them.
       </p>,
     ],
   },

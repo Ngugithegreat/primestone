@@ -1251,7 +1251,7 @@ export function SiteFooter() {
         <div className="mt-14 space-y-4 border-t border-white/[0.06] pt-8">
           <p className="text-[11.5px] leading-relaxed text-slate-500">
             {COMPANY.name} is authorised and regulated by the {COMPANY.regulator} (licence{" "}
-            {COMPANY.cmaLicence}). Registered office: {COMPANY.address.line1},{" "}
+            {COMPANY.licence}). Registered office: {COMPANY.address.line1},{" "}
             {COMPANY.address.line2}, {COMPANY.address.street}, {COMPANY.address.city},{" "}
             {COMPANY.address.country}.
           </p>

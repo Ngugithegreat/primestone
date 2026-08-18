@@ -78,7 +78,7 @@ export default function OpengraphImage() {
 
         {/* Footer row */}
         <div style={{ display: "flex", gap: 40, fontSize: 24, color: "#64748b" }}>
-          <span style={{ color: "#00dfa4" }}>● Regulated by the CMA, Kenya</span>
+          <span style={{ color: "#00dfa4" }}>● Regulated by the FSC, Mauritius</span>
           <span>Segregated client funds</span>
           <span>M-Pesa · Card · Crypto</span>
         </div>
