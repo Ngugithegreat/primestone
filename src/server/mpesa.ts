@@ -14,11 +14,14 @@ function config() {
   const env = (process.env.MPESA_ENVIRONMENT as MpesaEnv) ?? "sandbox";
   const base =
     env === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
-  const consumerKey = process.env.MPESA_CONSUMER_KEY ?? "";
-  const consumerSecret = process.env.MPESA_CONSUMER_SECRET ?? "";
-  const shortcode = process.env.MPESA_SHORTCODE ?? "174379";
-  const passkey = process.env.MPESA_PASSKEY ?? "";
-  const callbackUrl = process.env.MPESA_CALLBACK_URL ?? "";
+  // Trim every credential — a trailing space or newline pasted into the env
+  // (very common) otherwise corrupts the Basic-auth header or STK password and
+  // Safaricom answers 400.
+  const consumerKey = (process.env.MPESA_CONSUMER_KEY ?? "").trim();
+  const consumerSecret = (process.env.MPESA_CONSUMER_SECRET ?? "").trim();
+  const shortcode = (process.env.MPESA_SHORTCODE ?? "174379").trim();
+  const passkey = (process.env.MPESA_PASSKEY ?? "").trim();
+  const callbackUrl = (process.env.MPESA_CALLBACK_URL ?? "").trim();
   // "CustomerPayBillOnline" for a Pay Bill shortcode (default), or
   // "CustomerBuyGoodsOnline" if the shortcode is a Buy Goods / Till number.
   const transactionType = process.env.MPESA_TRANSACTION_TYPE ?? "CustomerPayBillOnline";
@@ -62,7 +65,19 @@ async function getAccessToken(): Promise<string> {
     headers: { Authorization: `Basic ${auth}` },
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`M-Pesa auth failed (${res.status})`);
+  if (!res.ok) {
+    // Surface Safaricom's own reason instead of a bare status — the OAuth body
+    // says whether it's bad credentials, a wrong environment, etc.
+    const detail = await res.text().catch(() => "");
+    let reason = "";
+    try {
+      reason = (JSON.parse(detail) as { errorMessage?: string })?.errorMessage ?? "";
+    } catch {
+      reason = detail.slice(0, 120);
+    }
+    console.error(`[mpesa auth] ${res.status} env=${c.env} keyLen=${c.consumerKey.length} ${detail}`);
+    throw new Error(`M-Pesa auth failed (${res.status})${reason ? `: ${reason}` : ""}`);
+  }
   const data = (await res.json()) as { access_token?: string };
   if (!data.access_token) throw new Error("M-Pesa auth returned no token");
   return data.access_token;
