@@ -21,6 +21,22 @@ export type Database = PostgresJsDatabase<typeof schema>;
 let _db: Database | null = null;
 let _client: postgres.Sql | null = null;
 
+/**
+ * postgres.js does not implement SCRAM channel binding, so a connection string
+ * carrying `channel_binding=require` (which Neon now appends by default) makes
+ * every connection fail — the whole app 500s while the data sits safe. Strip it;
+ * TLS is still enforced by `sslmode=require`.
+ */
+function sanitizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("channel_binding");
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])channel_binding=[^&]*(&|$)/i, "$1").replace(/[?&]$/, "");
+  }
+}
+
 export function getDb(): Database {
   if (_db) return _db;
 
@@ -35,7 +51,7 @@ export function getDb(): Database {
 
   // `prepare: false` is required when connecting through a transaction pooler
   // such as Neon's or Supabase's PgBouncer in transaction mode.
-  _client = postgres(url, { prepare: false });
+  _client = postgres(sanitizeUrl(url), { prepare: false });
   _db = drizzle(_client, { schema });
   return _db;
 }
