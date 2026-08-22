@@ -39,6 +39,12 @@ export function isMpesaConfigured(): boolean {
   return Boolean(c.consumerKey && c.consumerSecret && c.passkey);
 }
 
+/** The API base URL + environment, so other M-Pesa modules (B2C) can reuse it. */
+export function mpesaContext(): { base: string; env: MpesaEnv } {
+  const c = config();
+  return { base: c.base, env: c.env };
+}
+
 /** yyyyMMddHHmmss in EAT (UTC+3) — used for both the password and the request. */
 function timestamp(now = new Date()): string {
   const eat = new Date(now.getTime() + 3 * 60 * 60 * 1000);
@@ -58,7 +64,7 @@ export function normalizeMsisdn(phone: string): string {
   return digits;
 }
 
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const c = config();
   const auth = Buffer.from(`${c.consumerKey}:${c.consumerSecret}`).toString("base64");
   const res = await fetch(`${c.base}/oauth/v1/generate?grant_type=client_credentials`, {

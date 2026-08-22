@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bitcoin, Check, Loader2, Phone, X } from "lucide-react";
+import { Bitcoin, Check, Loader2, Phone, Send, X } from "lucide-react";
 import { Badge } from "@/components/ui/Primitives";
 import { Input } from "@/components/ui/Field";
 import { cn, initialsOf } from "@/lib/utils";
@@ -47,8 +47,8 @@ export function WithdrawalsQueue() {
     load();
   }, [load]);
 
-  const act = async (paymentId: string, action: "complete" | "reject") => {
-    setBusy(paymentId);
+  const act = async (paymentId: string, action: "complete" | "reject" | "send-mpesa") => {
+    setBusy(paymentId + action);
     setErr(undefined);
     const res = await fetch("/api/admin/withdrawals", {
       method: "POST",
@@ -151,6 +151,21 @@ export function WithdrawalsQueue() {
                     </div>
                     {w.status === "pending" ? (
                       <div className="flex gap-2">
+                        {w.provider === "mpesa" && (
+                          <button
+                            onClick={() => act(w.id, "send-mpesa")}
+                            disabled={busy !== null}
+                            title="Pay this out automatically via M-Pesa (B2C)"
+                            className="focus-ring inline-flex items-center gap-1 rounded-lg border border-iris-500/30 bg-iris-500/[0.1] px-3 py-1.5 text-[12.5px] font-medium text-iris-200 hover:bg-iris-500/[0.18]"
+                          >
+                            {busy === w.id + "send-mpesa" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            Send via M-Pesa
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setActive({ id: w.id, mode: "pay" });
@@ -204,10 +219,10 @@ export function WithdrawalsQueue() {
                         <div className="mt-3 flex gap-2">
                           <button
                             onClick={() => act(w.id, "complete")}
-                            disabled={busy === w.id}
+                            disabled={busy === w.id + "complete"}
                             className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-mint-500 px-3.5 py-2 text-[12.5px] font-semibold text-ink-950 hover:bg-mint-400"
                           >
-                            {busy === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            {busy === w.id + "complete" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                             Confirm paid
                           </button>
                           <button onClick={() => setActive(null)} className="rounded-lg px-3 py-2 text-[12.5px] text-slate-400 hover:text-white">
@@ -230,10 +245,10 @@ export function WithdrawalsQueue() {
                         <div className="mt-3 flex gap-2">
                           <button
                             onClick={() => act(w.id, "reject")}
-                            disabled={busy === w.id}
+                            disabled={busy === w.id + "reject"}
                             className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-rose-500 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:bg-rose-400"
                           >
-                            {busy === w.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                            {busy === w.id + "reject" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                             Reject & refund
                           </button>
                           <button onClick={() => setActive(null)} className="rounded-lg px-3 py-2 text-[12.5px] text-slate-400 hover:text-white">

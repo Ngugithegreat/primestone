@@ -369,6 +369,24 @@ export async function rejectWithdrawal(
   return result;
 }
 
+/** Find a withdrawal by the M-Pesa B2C ConversationID stored at payout time. */
+export async function findWithdrawalByConversationId(db: Database, conversationId: string) {
+  const [p] = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.kind, "withdrawal"), eq(payments.providerRequestId, conversationId)))
+    .limit(1);
+  return p ?? null;
+}
+
+/** Record the B2C ConversationID against a withdrawal so its result can match. */
+export async function attachPayoutRef(db: Database, paymentId: string, conversationId: string) {
+  await db
+    .update(payments)
+    .set({ providerRequestId: conversationId, updatedAt: new Date() })
+    .where(eq(payments.id, paymentId));
+}
+
 /** All deposits with the depositing user, newest first (admin). */
 export async function listDeposits(db: Database, opts?: { status?: string }) {
   const rows = await db
