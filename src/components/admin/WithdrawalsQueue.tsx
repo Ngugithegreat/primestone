@@ -15,7 +15,7 @@ type Withdrawal = {
   status: string;
   externalRef: string | null;
   createdAt: string;
-  user: { id: string; name: string; email: string; phone: string; flag: string; kyc: string };
+  user: { id: string; name: string; email: string; phone: string; flag: string; kyc: string; account: string };
 };
 
 const usd = (m: number) =>
@@ -117,6 +117,9 @@ export function WithdrawalsQueue() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-[13.5px] font-medium text-white">{w.user.name}</p>
+                        <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-mint-300">
+                          {w.user.account}
+                        </span>
                         <Badge tone={w.provider === "crypto" ? "iris" : "slate"}>
                           {w.provider === "crypto" ? "USDT" : "M-Pesa"}
                         </Badge>

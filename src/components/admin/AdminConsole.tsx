@@ -42,6 +42,7 @@ type KycStatus = "unverified" | "pending" | "verified" | "rejected";
 
 type AdminUser = {
   id: string;
+  account: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -135,13 +136,16 @@ export function AdminConsole() {
     if (filter !== "all") list = list.filter((u) => u.kycStatus === filter);
     if (query.trim()) {
       const q = query.trim().toLowerCase();
+      // Dash-insensitive so the M-Pesa receipt reference (e.g. "PSa5185f8d",
+      // which has no dash) matches the account number "PS-A5185F8D".
+      const qb = q.replace(/-/g, "");
       list = list.filter(
         (u) =>
           u.firstName.toLowerCase().includes(q) ||
           u.lastName.toLowerCase().includes(q) ||
           u.email.toLowerCase().includes(q) ||
           u.country.toLowerCase().includes(q) ||
-          accountNumber(u.id).toLowerCase().includes(q),
+          accountNumber(u.id).toLowerCase().replace(/-/g, "").includes(qb),
       );
     }
     return list;

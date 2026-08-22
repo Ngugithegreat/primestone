@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { isAdminAuthed } from "@/server/adminAuth";
 import { completeWithdrawal, listWithdrawals, rejectWithdrawal } from "@/server/payments";
+import { accountNumber } from "@/lib/account";
 
 const FLAG: Record<string, string> = {
   Kenya: "🇰🇪", Nigeria: "🇳🇬", "South Africa": "🇿🇦", Ghana: "🇬🇭", Tanzania: "🇹🇿",
@@ -30,6 +31,7 @@ export async function GET() {
       phone: r.user.phone,
       flag: FLAG[r.user.country] ?? "🌐",
       kyc: r.user.kycStatusCache,
+      account: accountNumber(r.user.id),
     },
   }));
   const pending = withdrawals.filter((w) => w.status === "pending").length;

@@ -14,7 +14,7 @@ type Deposit = {
   status: string;
   providerRef: string | null;
   createdAt: string;
-  user: { id: string; name: string; email: string; flag: string };
+  user: { id: string; name: string; email: string; flag: string; account: string };
 };
 
 type Totals = {
@@ -158,8 +158,11 @@ export function DepositsView() {
                       {initialsOf(d.user.name)}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[13.5px] font-medium text-white">
+                      <p className="flex items-center gap-2 truncate text-[13.5px] font-medium text-white">
                         {d.user.flag} {d.user.name || d.user.email}
+                        <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-mint-300">
+                          {d.user.account}
+                        </span>
                       </p>
                       <p className="flex items-center gap-1.5 truncate text-[11.5px] text-slate-500">
                         {d.provider === "crypto" ? (

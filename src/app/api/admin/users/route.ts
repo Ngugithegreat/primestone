@@ -10,6 +10,7 @@ import {
   users,
 } from "@/db/schema";
 import { isAdminAuthed } from "@/server/adminAuth";
+import { accountNumber } from "@/lib/account";
 
 const FLAG: Record<string, string> = {
   Kenya: "🇰🇪", Nigeria: "🇳🇬", "South Africa": "🇿🇦", Ghana: "🇬🇭", Tanzania: "🇹🇿",
@@ -66,6 +67,7 @@ export async function GET() {
     const uDocs = docsByUser.get(u.id) ?? [];
     return {
       id: u.id,
+      account: accountNumber(u.id),
       firstName: u.firstName,
       lastName: u.lastName || "",
       email: u.email,

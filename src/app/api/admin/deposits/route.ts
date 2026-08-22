@@ -6,6 +6,7 @@ import { isAdminAuthed } from "@/server/adminAuth";
 import { confirmDeposit, listDeposits } from "@/server/payments";
 import { stkQuery } from "@/server/mpesa";
 import { getCryptoStatus, isFailedStatus, isPaidStatus } from "@/server/nowpayments";
+import { accountNumber } from "@/lib/account";
 
 const FLAG: Record<string, string> = {
   Kenya: "🇰🇪", Nigeria: "🇳🇬", "South Africa": "🇿🇦", Ghana: "🇬🇭", Tanzania: "🇹🇿",
@@ -33,6 +34,9 @@ export async function GET() {
       name: `${r.user.firstName} ${r.user.lastName}`.trim(),
       email: r.user.email,
       flag: FLAG[r.user.country] ?? "🌐",
+      // The traceable account number. Its 8 chars match the M-Pesa STK account
+      // reference (PS + first 8 of the user id) shown on the customer's receipt.
+      account: accountNumber(r.user.id),
     },
   }));
 
