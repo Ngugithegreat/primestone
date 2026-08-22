@@ -116,11 +116,16 @@ export async function GET() {
 
   return NextResponse.json({ users: list, counts });
   } catch (e) {
-    // Surface the real Postgres error so an empty admin is diagnosable
-    // (auth failed / too many connections / SSL / relation missing, etc.).
-    console.error("[admin/users] db error:", e);
+    // Drizzle wraps the driver error as "Failed query: …"; the real Postgres
+    // cause (missing column, auth, connection limit, enum) is in e.cause.
+    const err = e as { message?: string; cause?: { message?: string; code?: string; detail?: string } };
+    const c = err.cause;
+    const root = c
+      ? `${c.message ?? ""}${c.code ? ` [code ${c.code}]` : ""}${c.detail ? ` — ${c.detail}` : ""}`.trim()
+      : "";
+    console.error("[admin/users] db error:", err.message, "| cause:", c);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Database error" },
+      { error: root || err.message || "Database error" },
       { status: 500 },
     );
   }
