@@ -146,7 +146,11 @@ export function DepositsView() {
         ) : (
           <div className="divide-y divide-white/[0.05]">
             {shown.map((d) => {
-              const isPending = d.status === "pending" || d.status === "initiated";
+              // Show the reconcile/credit actions for anything not yet credited —
+              // including "failed", since a customer can pay (M-Pesa proof) after
+              // an STK prompt timed out, leaving real money that must be credited.
+              const canSettle =
+                d.status === "pending" || d.status === "initiated" || d.status === "failed";
               return (
                 <div key={d.id} className="p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -188,7 +192,7 @@ export function DepositsView() {
                       <p className="tnum text-[15px] font-semibold text-white">{usd(d.amountMinor)}</p>
                       <Badge tone={TONE[d.status] ?? "slate"}>{d.status}</Badge>
                     </div>
-                    {isPending && (
+                    {canSettle && (
                       <div className="flex gap-2">
                         <button
                           onClick={() => act(d.id, "reconcile")}
