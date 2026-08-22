@@ -22,6 +22,7 @@ export async function GET() {
   if (!(await isAdminAuthed())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  try {
   const db = getDb();
 
   const rows = await db.select().from(users).orderBy(desc(users.createdAt));
@@ -114,4 +115,13 @@ export async function GET() {
   );
 
   return NextResponse.json({ users: list, counts });
+  } catch (e) {
+    // Surface the real Postgres error so an empty admin is diagnosable
+    // (auth failed / too many connections / SSL / relation missing, etc.).
+    console.error("[admin/users] db error:", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Database error" },
+      { status: 500 },
+    );
+  }
 }
