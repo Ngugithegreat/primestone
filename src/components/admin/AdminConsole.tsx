@@ -112,11 +112,27 @@ export function AdminConsole() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<"users" | "engine" | "deposits" | "withdrawals">("users");
 
+  const [loadError, setLoadError] = useState<string>();
+
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/users", { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      setUsers(data.users ?? []);
+    try {
+      const res = await fetch("/api/admin/users", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users ?? []);
+        setLoadError(undefined);
+      } else {
+        // Distinguish "can't read the database" from "genuinely no users" —
+        // a 500 here means the query/connection failed, data is not lost.
+        const body = await res.json().catch(() => ({}));
+        setLoadError(
+          `Couldn't load users — the server returned HTTP ${res.status}` +
+            (body?.error ? ` (${body.error})` : "") +
+            ". This is a data-read failure (likely the database connection), not deleted data.",
+        );
+      }
+    } catch {
+      setLoadError("Couldn't reach the server to load users (network error).");
     }
     setLoading(false);
   }, []);
@@ -227,6 +243,12 @@ export function AdminConsole() {
         <p className="mt-1 text-[14px] text-slate-400">
           Every registered account with live figures. Review identity submissions here.
         </p>
+
+        {loadError && (
+          <div className="mt-4 rounded-xl border border-rose-500/25 bg-rose-500/[0.07] px-4 py-3 text-[13px] text-rose-200">
+            {loadError}
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {STATS.map((s) => (
