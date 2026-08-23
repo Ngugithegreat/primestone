@@ -25,7 +25,7 @@ export function LiveOverview() {
       ? { label: "Verified", dot: "bg-mint-500", sub: "Withdrawals enabled" }
       : kyc === "pending"
         ? { label: "Under review", dot: "bg-amber-450", sub: "Usually within hours" }
-        : { label: "Not verified", dot: "bg-slate-500", sub: "Required to withdraw" };
+        : { label: "Not verified", dot: "", sub: "" };
 
   return (
     <div className="space-y-5">
@@ -215,10 +215,12 @@ function MiniStat({
       <p className={cn("tnum mt-1 truncate text-[18px] font-semibold text-white", valueClass)}>
         {value}
       </p>
-      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-        {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />}
-        {sub}
-      </p>
+      {(sub || dot) && (
+        <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+          {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />}
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
