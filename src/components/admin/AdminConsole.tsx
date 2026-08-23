@@ -8,6 +8,7 @@ import {
   Banknote,
   Check,
   Clock,
+  Coins,
   FileText,
   Flag,
   Hash,
@@ -368,8 +369,37 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState(REJECT_REASONS[0]!);
   const [busy, setBusy] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundNote, setFundNote] = useState("");
+  const [fundBusy, setFundBusy] = useState(false);
+  const [fundMsg, setFundMsg] = useState<{ tone: "ok" | "err"; text: string }>();
   const meta = STATUS_META[user.kycStatus];
   const canReview = user.kycStatus === "pending";
+
+  const fund = async () => {
+    const amount = Number(fundAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setFundMsg({ tone: "err", text: "Enter a valid amount." });
+      return;
+    }
+    setFundBusy(true);
+    setFundMsg(undefined);
+    const res = await fetch("/api/admin/fund", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: user.id, amount, note: fundNote.trim() || undefined }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setFundBusy(false);
+    if (!res.ok) {
+      setFundMsg({ tone: "err", text: d.error ?? "Funding failed." });
+      return;
+    }
+    setFundMsg({ tone: "ok", text: `Credited $${amount.toLocaleString()} to ${user.firstName}.` });
+    setFundAmount("");
+    setFundNote("");
+    await onChanged();
+  };
 
   const review = async (decision: "verified" | "rejected") => {
     setBusy(true);
@@ -442,6 +472,43 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
               <Metric label="Account type" value={user.accountType} />
             </div>
             <p className="mt-2 text-[11.5px] text-slate-500">Joined {new Date(user.joinedAt).toLocaleString("en-GB")}</p>
+          </Section>
+
+          <Section title="Fund account">
+            <p className="text-[12px] leading-relaxed text-slate-400">
+              Manually credit {user.firstName}&rsquo;s balance — use this when a real payment
+              didn&rsquo;t reflect. It records a completed deposit and emails them.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">$</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  placeholder="Amount (USD)"
+                  className="pl-6"
+                  disabled={fundBusy}
+                />
+              </div>
+              <Button onClick={fund} disabled={fundBusy}>
+                {fundBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Coins className="h-4 w-4" />}
+                Fund
+              </Button>
+            </div>
+            <Input
+              value={fundNote}
+              onChange={(e) => setFundNote(e.target.value)}
+              placeholder="Note (optional) — e.g. M-Pesa UHMCJ3Q6FP"
+              className="mt-2"
+              disabled={fundBusy}
+            />
+            {fundMsg && (
+              <p className={cn("mt-2 text-[12.5px]", fundMsg.tone === "ok" ? "text-mint-400" : "text-rose-400")}>
+                {fundMsg.text}
+              </p>
+            )}
           </Section>
 
           {user.kyc ? (

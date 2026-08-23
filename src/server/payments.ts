@@ -387,6 +387,46 @@ export async function attachPayoutRef(db: Database, paymentId: string, conversat
     .where(eq(payments.id, paymentId));
 }
 
+/**
+ * Manually credit a user's account (admin) — for when a real payment failed to
+ * reflect. Records it as a completed deposit (provider "bank") and runs it
+ * through the normal crediting path, so it shows in the deposits list, the
+ * user's history and totals, and the client gets the deposit-credited email.
+ */
+export async function adminCreditUser(
+  db: Database,
+  input: { userId: string; amountUsd: number; note?: string; reviewerId?: string | null },
+): Promise<{ ok: true; name: string; amountMinor: number } | { ok: false; error: string }> {
+  const usdMinor = toMinor(input.amountUsd);
+  if (!(usdMinor > 0)) return { ok: false, error: "Amount must be positive." };
+
+  const [u] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!u) return { ok: false, error: "User not found." };
+
+  const paymentId = await initiateDeposit(db, {
+    userId: input.userId,
+    provider: "bank",
+    amount: usdMinor,
+    currency: "USD",
+    creditedAmount: usdMinor,
+  });
+  await confirmDeposit(db, {
+    paymentId,
+    externalRef: `manual:${paymentId}`,
+    rawCallback: { source: "admin-manual-fund", note: input.note ?? null, reviewerId: input.reviewerId ?? null },
+  });
+
+  await db.insert(auditLog).values({
+    actorId: input.reviewerId ?? null,
+    action: "deposit.manual_credit",
+    targetType: "payment",
+    targetId: paymentId,
+    metadata: { userId: input.userId, amountMinor: usdMinor, note: input.note ?? null },
+  });
+
+  return { ok: true, name: `${u.firstName} ${u.lastName}`.trim() || u.email, amountMinor: usdMinor };
+}
+
 /** All deposits with the depositing user, newest first (admin). */
 export async function listDeposits(db: Database, opts?: { status?: string }) {
   const rows = await db

@@ -32,6 +32,7 @@ import {
   toMinor,
 } from "../src/server/ledger";
 import {
+  adminCreditUser,
   completeWithdrawal,
   confirmDeposit,
   initiateDeposit,
@@ -399,6 +400,20 @@ async function main() {
     `(before ${beforePaper}, after ${afterPaper})`,
   );
   await assertLedgerBalanced(db, "after paper trade");
+
+  /* --- Admin manual fund ------------------------------------------------ */
+  console.log("\nAdmin manual fund");
+  const beforeFund = await clientCashBalance(db, userId);
+  const fundRes = await adminCreditUser(db, { userId, amountUsd: 75, note: "test top-up" });
+  check("admin fund succeeds", fundRes.ok);
+  const afterFund = await clientCashBalance(db, userId);
+  check(
+    "admin fund credits $75.00 to the user's cash",
+    afterFund - beforeFund === 7500,
+    `(before ${beforeFund}, after ${afterFund})`,
+  );
+  check("admin fund rejects a non-positive amount", !(await adminCreditUser(db, { userId, amountUsd: 0 })).ok);
+  await assertLedgerBalanced(db, "after admin manual fund");
 
   /* --- Two-factor authentication ---------------------------------------- */
   console.log("\nTwo-factor authentication");
