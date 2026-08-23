@@ -190,8 +190,24 @@ export async function stkQuery(checkoutRequestId: string): Promise<StkQueryResul
     }
     const code = String(data.ResultCode);
     if (code === "0") return { status: "success", resultDesc: data.ResultDesc ?? "Success", resultCode: code };
-    // 1032 = cancelled, 1037 = timeout, 1 = insufficient, 2001 = wrong PIN, etc.
-    return { status: "failed", resultDesc: data.ResultDesc ?? `Failed (${code})`, resultCode: code };
+
+    // Only these are terminal, user-facing failures. Crucially, code 4999
+    // ("the transaction is still under processing") and any other/unknown code
+    // stay PENDING — Safaricom hasn't finished, so we keep polling and let the
+    // callback or reconcile cron credit it. Marking 4999 as failed is what made
+    // paid deposits show "didn't go through" the instant the STK was sent.
+    const TERMINAL_FAILURES: Record<string, string> = {
+      "1032": "Request cancelled on the phone.",
+      "1037": "Timed out — the prompt wasn't answered in time.",
+      "1": "Insufficient M-Pesa balance.",
+      "2001": "The M-Pesa PIN entered was wrong.",
+      "1019": "The transaction expired.",
+      "1025": "Unable to process — please try again.",
+    };
+    if (code in TERMINAL_FAILURES) {
+      return { status: "failed", resultDesc: TERMINAL_FAILURES[code], resultCode: code };
+    }
+    return { status: "pending", resultDesc: data.ResultDesc ?? "Still processing", resultCode: code };
   } catch (e) {
     return { status: "pending", resultDesc: e instanceof Error ? e.message : "Query failed" };
   }

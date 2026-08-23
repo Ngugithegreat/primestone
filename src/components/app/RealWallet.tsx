@@ -197,10 +197,13 @@ function MpesaDeposit({
   const MIN_USD = 100;
   const [amount, setAmount] = useState(MIN_USD); // USD
   const [phone, setPhone] = useState(defaultPhone);
-  const [state, setState] = useState<"idle" | "prompting" | "waiting" | "done" | "failed">("idle");
+  const [state, setState] = useState<
+    "idle" | "prompting" | "waiting" | "confirming" | "slow" | "done" | "failed"
+  >("idle");
   const [message, setMessage] = useState<string>();
   const [rate, setRate] = useState(129);
   const pollRef = useRef<number | null>(null);
+  const lastPaymentId = useRef<string | null>(null);
 
   useEffect(() => {
     getUsdKesRate().then(setRate);
@@ -227,32 +230,72 @@ function MpesaDeposit({
     setState("waiting");
     setMessage(res.message ?? "Check your phone and enter your M-Pesa PIN.");
 
-    // Reconcile against Safaricom until the deposit resolves. This doesn't
-    // depend on the async callback arriving — the server actively queries the
-    // transaction status and credits on success.
+    // Poll Safaricom until the deposit resolves — independent of the async
+    // callback. A "pending" result (incl. code 4999 "still processing") is NOT
+    // a failure: we keep waiting. Only a real terminal code stops us, and after
+    // a while we switch to a reassuring "still confirming" state, never an error.
     const paymentId = res.paymentId;
+    lastPaymentId.current = paymentId;
     let ticks = 0;
     pollRef.current = window.setInterval(async () => {
       ticks++;
+      // Once the customer has had time to punch in their PIN, reflect that we're
+      // now confirming rather than still waiting on them.
+      setState((s) => (s === "waiting" && ticks >= 6 ? "confirming" : s));
       const { status, detail, code } = await mpesaStatus(paymentId);
       if (status === "completed") {
         window.clearInterval(pollRef.current!);
         setState("done");
         setMessage("Payment received — your balance has been updated.");
         await onCredited();
-      } else if (status === "failed" || ticks > 40) {
+      } else if (status === "failed") {
         window.clearInterval(pollRef.current!);
         setState("failed");
         setMessage(
-          status === "failed"
-            ? `Payment didn't go through${detail ? `: ${humanizeMpesa(detail, code)}` : "."}${code ? ` (M-Pesa code ${code})` : ""}`
-            : "Still confirming — if money left your phone, it will reflect shortly. Refresh in a moment.",
+          `Payment didn't go through${detail ? `: ${humanizeMpesa(detail, code)}` : "."}`,
+        );
+      } else if (ticks > 60) {
+        // ~4 minutes and still pending — not a failure. The reconcile cron and
+        // callback will credit it automatically once Safaricom confirms.
+        window.clearInterval(pollRef.current!);
+        setState("slow");
+        setMessage(
+          "Still confirming with M-Pesa. If the money left your phone, it will be credited automatically within a few minutes — you can safely close this.",
         );
       }
     }, 4000);
   };
 
-  const busy = state === "prompting" || state === "waiting";
+  const recheck = async () => {
+    const pid = lastPaymentId.current;
+    if (!pid) return setState("idle");
+    setState("confirming");
+    const { status, detail, code } = await mpesaStatus(pid);
+    if (status === "completed") {
+      setState("done");
+      setMessage("Payment received — your balance has been updated.");
+      await onCredited();
+    } else if (status === "failed") {
+      setState("failed");
+      setMessage(`Payment didn't go through${detail ? `: ${humanizeMpesa(detail, code)}` : "."}`);
+    } else {
+      setState("slow");
+      setMessage(
+        "Still confirming with M-Pesa. If the money left your phone, it will be credited automatically within a few minutes.",
+      );
+    }
+  };
+
+  const busy = state === "prompting" || state === "waiting" || state === "confirming";
+  const inProgress = busy || state === "slow";
+
+  const STEPS: { key: string; label: string }[] = [
+    { key: "sent", label: "STK prompt sent to your phone" },
+    { key: "pin", label: "Approve it — enter your M-Pesa PIN" },
+    { key: "credit", label: "Confirming & crediting your account" },
+  ];
+  // Which step is active/complete for the timeline.
+  const stepIndex = state === "prompting" ? 0 : state === "waiting" ? 1 : 2;
 
   return (
     <Card className="p-6">
@@ -277,6 +320,90 @@ function MpesaDeposit({
           >
             Make another deposit
           </button>
+        </div>
+      ) : inProgress ? (
+        <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
+          <div className="flex items-center gap-2.5">
+            {state === "slow" ? (
+              <Clock className="h-5 w-5 text-amber-400" />
+            ) : (
+              <Loader2 className="h-5 w-5 animate-spin text-mint-400" />
+            )}
+            <p className="text-[14.5px] font-semibold text-white">
+              {state === "prompting"
+                ? "Sending prompt…"
+                : state === "slow"
+                  ? "Still confirming"
+                  : "Payment in progress"}
+            </p>
+          </div>
+          <p className="mt-1 text-[12.5px] text-slate-400">
+            ${amount.toLocaleString()} · ≈ KES {Math.round(amount * rate).toLocaleString()} to {phone}
+          </p>
+
+          <div className="mt-4 space-y-3">
+            {STEPS.map((s, i) => {
+              const done = i < stepIndex;
+              const active = i === stepIndex;
+              return (
+                <div key={s.key} className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "grid h-6 w-6 shrink-0 place-items-center rounded-full border",
+                      done
+                        ? "border-mint-500/30 bg-mint-500/15"
+                        : active
+                          ? "border-mint-500/40 bg-mint-500/10"
+                          : "border-white/10 bg-white/[0.03]",
+                    )}
+                  >
+                    {done ? (
+                      <CheckCircle2 className="h-4 w-4 text-mint-400" />
+                    ) : active ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-mint-300" />
+                    ) : (
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[13px]",
+                      done ? "text-slate-300" : active ? "font-medium text-white" : "text-slate-500",
+                    )}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {message && (
+            <div
+              className={cn(
+                "mt-4 rounded-lg border p-3 text-[12.5px] leading-relaxed",
+                state === "slow"
+                  ? "border-amber-450/25 bg-amber-450/[0.06] text-amber-300"
+                  : "border-white/[0.06] bg-white/[0.02] text-slate-400",
+              )}
+            >
+              {message}
+            </div>
+          )}
+
+          {state === "slow" && (
+            <div className="mt-4 flex items-center gap-3">
+              <Button onClick={recheck} size="sm">
+                Check again
+              </Button>
+              <button
+                onClick={() => setState("idle")}
+                className="text-[13px] font-medium text-slate-400 hover:text-white"
+              >
+                Make another deposit
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-5 space-y-4">
@@ -337,31 +464,15 @@ function MpesaDeposit({
             />
           </Field>
 
-          {message && (
-            <div
-              className={cn(
-                "flex items-start gap-2 rounded-lg border p-3 text-[12.5px]",
-                state === "failed"
-                  ? "border-rose-500/25 bg-rose-500/[0.06] text-rose-300"
-                  : "border-amber-450/25 bg-amber-450/[0.06] text-amber-300",
-              )}
-            >
-              {state === "waiting" ? (
-                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-pulse" />
-              ) : (
-                <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              )}
+          {message && state === "failed" && (
+            <div className="flex items-start gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] p-3 text-[12.5px] text-rose-300">
+              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {message}
             </div>
           )}
 
           <Button onClick={start} disabled={busy} className="w-full">
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {state === "waiting"
-              ? "Waiting for your PIN…"
-              : state === "prompting"
-                ? "Sending prompt…"
-                : `Deposit $${amount.toLocaleString()}`}
+            {state === "failed" ? "Try again" : `Deposit $${amount.toLocaleString()}`}
           </Button>
 
           <div className="flex items-center justify-center gap-1.5 pt-0.5 text-[11px] text-slate-600">
