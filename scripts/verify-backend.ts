@@ -51,6 +51,7 @@ import { ledgerEntries } from "../src/db/schema";
 import { createHmac } from "node:crypto";
 import { generateSecret, verifyTotp } from "../src/server/totp";
 import { begin2FASetup, enable2FA, is2FAEnabled, verify2FA, disable2FA } from "../src/server/twoFactor";
+import { isEmailVerified, startEmailVerification, verifyEmailCode } from "../src/server/emailVerify";
 
 let pass = 0;
 let fail = 0;
@@ -414,6 +415,16 @@ async function main() {
   );
   check("admin fund rejects a non-positive amount", !(await adminCreditUser(db, { userId, amountUsd: 0 })).ok);
   await assertLedgerBalanced(db, "after admin manual fund");
+
+  /* --- Email verification ----------------------------------------------- */
+  console.log("\nEmail verification");
+  check("email unverified by default", !(await isEmailVerified(db, userId)));
+  const evCode = await startEmailVerification(db, userId);
+  check("verification code is 6 digits", /^\d{6}$/.test(evCode));
+  const wrongCode = evCode === "111111" ? "222222" : "111111";
+  check("wrong code is rejected", !(await verifyEmailCode(db, userId, wrongCode)).ok);
+  check("correct code verifies", (await verifyEmailCode(db, userId, evCode)).ok);
+  check("email now verified", await isEmailVerified(db, userId));
 
   /* --- Two-factor authentication ---------------------------------------- */
   console.log("\nTwo-factor authentication");

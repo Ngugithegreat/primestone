@@ -121,6 +121,44 @@ export async function apiLogout() {
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
 }
 
+/* ---- Email verification -------------------------------------------------- */
+
+export async function emailVerifyStatus(): Promise<{ verified: boolean }> {
+  try {
+    const res = await fetch("/api/auth/verify-email", { cache: "no-store" });
+    if (!res.ok) return { verified: true }; // don't nag if we can't tell
+    return await res.json();
+  } catch {
+    return { verified: true };
+  }
+}
+
+export async function emailVerifySubmit(code: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "That code isn't right." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
+export async function emailVerifyResend(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/verify-email/resend", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error ?? "Couldn't resend." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error. Please try again." };
+  }
+}
+
 /* ---- Two-factor authentication ------------------------------------------- */
 
 export async function twoFactorStatus(): Promise<{ enabled: boolean }> {

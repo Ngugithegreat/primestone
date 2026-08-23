@@ -21,6 +21,7 @@ import { Logo, LogoMark } from "@/components/ui/Logo";
 import { SiteBackground } from "@/components/landing/SiteBackground";
 import { AccountSwitcher } from "./AccountSwitcher";
 import { IdleTimeout } from "./IdleTimeout";
+import { VerifyEmailBanner } from "./VerifyEmailBanner";
 import { Badge, LiveDot, SpringNumber } from "@/components/ui/Primitives";
 import { useMarket } from "@/components/providers/MarketProvider";
 import { getAccountType } from "@/lib/accounts";
@@ -135,7 +136,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="lg:pl-[248px]">
         <TopBar onMenu={() => setMobileOpen(true)} />
-        <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+          <VerifyEmailBanner />
+          {children}
+        </main>
       </div>
     </div>
   );
