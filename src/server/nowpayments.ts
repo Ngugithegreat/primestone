@@ -114,6 +114,26 @@ export function isPaidStatus(status: string): boolean {
   return status === "finished";
 }
 
+/**
+ * Statuses where coins have actually landed and we should credit whatever
+ * arrived — includes `partially_paid` (the client sent less than the invoice).
+ * We credit the real received amount, not the requested one, so a short payment
+ * still credits its true value instead of getting stuck.
+ */
+export function isCreditableStatus(status: string): boolean {
+  return status === "finished" || status === "partially_paid";
+}
+
 export function isFailedStatus(status: string): boolean {
   return status === "failed" || status === "expired" || status === "refunded";
+}
+
+/**
+ * USD minor units to credit for a USDT deposit, from the amount actually paid.
+ * Our crypto option is USDT only (1:1 with USD), so the received USDT is the
+ * USD value. Returns 0 if nothing arrived.
+ */
+export function creditedMinorFromPaid(actuallyPaid: number): number {
+  if (!(actuallyPaid > 0)) return 0;
+  return Math.round(actuallyPaid * 100);
 }

@@ -79,6 +79,13 @@ export async function confirmDeposit(
     paymentId: string;
     externalRef: string;
     rawCallback?: unknown;
+    /**
+     * Credit exactly this many USD minor units instead of the amount the user
+     * requested. Used for crypto, where we credit whatever actually arrived
+     * on-chain (not the invoice amount), so an under/over-payment reflects the
+     * real received value.
+     */
+    creditMinorOverride?: number;
   },
 ): Promise<{ ok: boolean; alreadyProcessed: boolean }> {
   const result = await db.transaction(async (tx) => {
@@ -101,8 +108,12 @@ export async function confirmDeposit(
       return { ok: false, alreadyProcessed: true, credited: null as CreditedInfo | null };
     }
 
-    // The account is denominated in USD; credit the converted amount.
-    const creditMinor = payment.creditedAmount ?? payment.amount;
+    // The account is denominated in USD; credit the converted amount — or the
+    // actual received amount when an override is given (crypto).
+    const creditMinor =
+      input.creditMinorOverride && input.creditMinorOverride > 0
+        ? input.creditMinorOverride
+        : payment.creditedAmount ?? payment.amount;
     const clearing = await ensureSystemAccount(tx as unknown as Database, "system_deposits_clearing", "USD");
     const cash = await ensureClientCashAccount(tx as unknown as Database, payment.userId, "USD");
 

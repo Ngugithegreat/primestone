@@ -4,7 +4,12 @@ import { getDb } from "@/db/client";
 import { payments } from "@/db/schema";
 import { confirmDeposit, listPendingDeposits } from "@/server/payments";
 import { stkQuery } from "@/server/mpesa";
-import { getCryptoStatus, isFailedStatus, isPaidStatus } from "@/server/nowpayments";
+import {
+  creditedMinorFromPaid,
+  getCryptoStatus,
+  isCreditableStatus,
+  isFailedStatus,
+} from "@/server/nowpayments";
 
 /**
  * Reconcile pending deposits directly with the provider, so a deposit credits
@@ -51,11 +56,12 @@ async function handle(req: Request) {
         }
       } else if (p.provider === "crypto") {
         const q = await getCryptoStatus(p.providerRequestId);
-        if (q && isPaidStatus(q.status)) {
+        if (q && isCreditableStatus(q.status)) {
           await confirmDeposit(db, {
             paymentId: p.id,
             externalRef: `nowpay:${p.providerRequestId}`,
-            rawCallback: { source: "reconcile-cron", status: q.status },
+            rawCallback: { source: "reconcile-cron", status: q.status, actuallyPaid: q.actuallyPaid },
+            creditMinorOverride: creditedMinorFromPaid(q.actuallyPaid),
           });
           credited++;
         } else if (q && isFailedStatus(q.status)) {

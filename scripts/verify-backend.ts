@@ -416,6 +416,31 @@ async function main() {
   check("admin fund rejects a non-positive amount", !(await adminCreditUser(db, { userId, amountUsd: 0 })).ok);
   await assertLedgerBalanced(db, "after admin manual fund");
 
+  /* --- Crypto credits the actual received amount ------------------------ */
+  console.log("\nCrypto actual-amount crediting");
+  const beforeCrypto = await clientCashBalance(db, userId);
+  const cryptoPid = await initiateDeposit(db, {
+    userId,
+    provider: "crypto",
+    amount: 10000, // invoiced $100
+    currency: "USD",
+    creditedAmount: 10000,
+    providerRequestId: "np_test_partial",
+  });
+  // The client actually sent only 63.50 USDT — credit that, not the $100 invoice.
+  await confirmDeposit(db, {
+    paymentId: cryptoPid,
+    externalRef: "nowpay:np_test_partial",
+    creditMinorOverride: 6350,
+  });
+  const afterCrypto = await clientCashBalance(db, userId);
+  check(
+    "crypto credits the actual received amount, not the invoice",
+    afterCrypto - beforeCrypto === 6350,
+    `(delta ${afterCrypto - beforeCrypto})`,
+  );
+  await assertLedgerBalanced(db, "after crypto actual-amount credit");
+
   /* --- Email verification ----------------------------------------------- */
   console.log("\nEmail verification");
   check("email unverified by default", !(await isEmailVerified(db, userId)));

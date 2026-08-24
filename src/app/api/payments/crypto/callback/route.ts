@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { payments } from "@/db/schema";
 import { confirmDeposit } from "@/server/payments";
-import { isFailedStatus, isPaidStatus, verifyIpnSignature } from "@/server/nowpayments";
+import {
+  creditedMinorFromPaid,
+  isCreditableStatus,
+  isFailedStatus,
+  verifyIpnSignature,
+} from "@/server/nowpayments";
 
 /**
  * NOWPayments IPN webhook. Credits the client's account ONLY after verifying the
@@ -31,6 +36,7 @@ export async function POST(req: Request) {
 
   const nowId = String(body.payment_id ?? "");
   const status = String(body.payment_status ?? "");
+  const actuallyPaid = Number(body.actually_paid ?? 0);
   if (!nowId) return NextResponse.json({ ok: true });
 
   const db = getDb();
@@ -44,11 +50,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  if (isPaidStatus(status)) {
+  if (isCreditableStatus(status)) {
+    // Credit whatever actually arrived on-chain, not the invoice amount, so an
+    // under- or over-payment credits its real value instead of getting stuck.
     await confirmDeposit(db, {
       paymentId: payment.id,
       externalRef: `nowpay:${nowId}`,
       rawCallback: body,
+      creditMinorOverride: creditedMinorFromPaid(actuallyPaid),
     });
   } else if (isFailedStatus(status)) {
     await db

@@ -590,9 +590,9 @@ function CryptoDeposit({ onCredited }: { onCredited: () => Promise<void> }) {
       ) : state === "awaiting" ? (
         <div className="mt-5 space-y-3">
           <div className="rounded-xl border border-iris-500/20 bg-iris-500/[0.05] p-4">
-            <p className="text-[12px] text-slate-400">Send exactly</p>
+            <p className="text-[12px] text-slate-400">Suggested amount (for ${amount.toLocaleString()})</p>
             <p className="tnum mt-0.5 text-[20px] font-bold text-white">
-              {payAmount}{" "}
+              ≈ {payAmount}{" "}
               <span className="text-[14px] font-semibold uppercase text-iris-300">{payCurrency}</span>
             </p>
             <p className="mt-1 text-[11.5px] text-slate-500">on {network.net} · to the address below</p>
@@ -610,9 +610,14 @@ function CryptoDeposit({ onCredited }: { onCredited: () => Promise<void> }) {
               </button>
             </div>
           </div>
+          <div className="flex items-start gap-2 rounded-lg border border-mint-500/25 bg-mint-500/[0.06] p-3 text-[12px] text-mint-300">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Send <span className="font-semibold">any amount</span> — we credit exactly what arrives,
+            not a fixed figure. The suggested amount is just for a ${amount.toLocaleString()} deposit.
+          </div>
           <div className="flex items-start gap-2 rounded-lg border border-amber-450/25 bg-amber-450/[0.06] p-3 text-[12px] text-amber-300">
             <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-pulse" />
-            Waiting for your transfer… this credits automatically once the network confirms (usually
+            Waiting for your transfer… it credits automatically once the network confirms (usually
             1–2 min). You can safely leave this page.
           </div>
           <p className="text-[11px] text-slate-600">

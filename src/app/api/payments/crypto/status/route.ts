@@ -4,7 +4,12 @@ import { getDb } from "@/db/client";
 import { payments } from "@/db/schema";
 import { currentUser } from "@/server/session";
 import { confirmDeposit } from "@/server/payments";
-import { getCryptoStatus, isFailedStatus, isPaidStatus } from "@/server/nowpayments";
+import {
+  creditedMinorFromPaid,
+  getCryptoStatus,
+  isCreditableStatus,
+  isFailedStatus,
+} from "@/server/nowpayments";
 
 /**
  * Reconcile a pending crypto deposit by asking NOWPayments directly, then credit
@@ -36,11 +41,12 @@ export async function POST(req: Request) {
   const q = await getCryptoStatus(payment.providerRequestId);
   if (!q) return NextResponse.json({ status: "pending" });
 
-  if (isPaidStatus(q.status)) {
+  if (isCreditableStatus(q.status)) {
     await confirmDeposit(db, {
       paymentId: payment.id,
       externalRef: `nowpay:${payment.providerRequestId}`,
-      rawCallback: { source: "status-poll", status: q.status },
+      rawCallback: { source: "status-poll", status: q.status, actuallyPaid: q.actuallyPaid },
+      creditMinorOverride: creditedMinorFromPaid(q.actuallyPaid),
     });
     return NextResponse.json({ status: "completed" });
   }

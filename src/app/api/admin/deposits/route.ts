@@ -5,7 +5,12 @@ import { payments } from "@/db/schema";
 import { isAdminAuthed } from "@/server/adminAuth";
 import { confirmDeposit, listDeposits } from "@/server/payments";
 import { stkQuery } from "@/server/mpesa";
-import { getCryptoStatus, isFailedStatus, isPaidStatus } from "@/server/nowpayments";
+import {
+  creditedMinorFromPaid,
+  getCryptoStatus,
+  isCreditableStatus,
+  isFailedStatus,
+} from "@/server/nowpayments";
 import { accountNumber } from "@/lib/account";
 
 const FLAG: Record<string, string> = {
@@ -102,8 +107,13 @@ export async function POST(req: Request) {
     if (p.provider === "crypto") {
       const q = await getCryptoStatus(p.providerRequestId);
       if (!q) return NextResponse.json({ ok: true, status: "pending", detail: "NOWPayments unreachable or not configured." });
-      if (isPaidStatus(q.status)) {
-        await confirmDeposit(db, { paymentId: p.id, externalRef: `nowpay:${p.providerRequestId}`, rawCallback: { source: "admin-reconcile" } });
+      if (isCreditableStatus(q.status)) {
+        await confirmDeposit(db, {
+          paymentId: p.id,
+          externalRef: `nowpay:${p.providerRequestId}`,
+          rawCallback: { source: "admin-reconcile", actuallyPaid: q.actuallyPaid },
+          creditMinorOverride: creditedMinorFromPaid(q.actuallyPaid),
+        });
         return NextResponse.json({ ok: true, status: "completed" });
       }
       if (isFailedStatus(q.status)) {
