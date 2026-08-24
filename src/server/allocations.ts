@@ -55,12 +55,49 @@ export async function allocate(
       return { ok: false as const, error: "Allocation exceeds your available balance." };
     }
 
-    const allocAccount = await createAllocationAccount(
-      tx as unknown as Database,
-      input.userId,
-      input.providerId,
-      currency,
-    );
+    // One allocation per (user, provider): if there's already an active one,
+    // top it up (reuse its ledger account, bump the committed amount) instead of
+    // creating a second row/account. A duplicate row would share the provider's
+    // ledger balance and get double-counted in the total — e.g. after a blown
+    // run, re-copying looked like the lost capital came back.
+    const [existing] = await tx
+      .select({ id: allocations.id, amount: allocations.amount })
+      .from(allocations)
+      .where(
+        and(
+          eq(allocations.userId, input.userId),
+          eq(allocations.providerId, input.providerId),
+          eq(allocations.status, "active"),
+        ),
+      )
+      .orderBy(desc(allocations.startedAt))
+      .limit(1);
+
+    let allocAccount: string | null = null;
+    if (existing) {
+      // Reuse the provider's latest allocation account.
+      const [acc] = await tx
+        .select({ id: ledgerAccounts.id })
+        .from(ledgerAccounts)
+        .where(
+          and(
+            eq(ledgerAccounts.kind, "client_allocation"),
+            eq(ledgerAccounts.userId, input.userId),
+            eq(ledgerAccounts.providerId, input.providerId),
+          ),
+        )
+        .orderBy(desc(ledgerAccounts.createdAt))
+        .limit(1);
+      allocAccount = acc?.id ?? null;
+    }
+    if (!allocAccount) {
+      allocAccount = await createAllocationAccount(
+        tx as unknown as Database,
+        input.userId,
+        input.providerId,
+        currency,
+      );
+    }
 
     await postWithin(tx as unknown as Database, {
       kind: "allocation",
@@ -73,6 +110,14 @@ export async function allocate(
         { accountId: allocAccount, amount },
       ],
     });
+
+    if (existing) {
+      await tx
+        .update(allocations)
+        .set({ amount: existing.amount + amount })
+        .where(eq(allocations.id, existing.id));
+      return { ok: true as const, allocationId: existing.id };
+    }
 
     const [row] = await tx
       .insert(allocations)

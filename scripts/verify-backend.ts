@@ -13,7 +13,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import type { Database } from "../src/db/client";
 import {
@@ -401,6 +401,72 @@ async function main() {
     `(before ${beforePaper}, after ${afterPaper})`,
   );
   await assertLedgerBalanced(db, "after paper trade");
+
+  /* --- Re-copy after a blown run (no phantom capital) ------------------- */
+  console.log("\nRe-copy after a blown run");
+  const prov2 = await createProvider(db, {
+    name: "Blow Test FX",
+    strategy: "Test",
+    feeBps: 2000,
+    minInvestment: 100,
+    verified: true,
+  });
+  const pid2 = prov2.ok ? prov2.id : "";
+  check("second provider created", prov2.ok);
+
+  await adminCreditUser(db, { userId, amountUsd: 100 });
+  const copy1 = await allocate(db, { userId, providerId: pid2, amount: 100 });
+  check("copy #1 ok", copy1.ok);
+  check(
+    "allocated $100 after copy #1",
+    ((await activeAllocationValues(db, userId)).byProvider[pid2] ?? 0) === 10000,
+  );
+
+  // Blow it: drain the allocation account to $0 via a losing trade.
+  const [aacc] = await db
+    .select({ id: schema.ledgerAccounts.id })
+    .from(schema.ledgerAccounts)
+    .where(
+      and(
+        eq(schema.ledgerAccounts.kind, "client_allocation"),
+        eq(schema.ledgerAccounts.userId, userId),
+        eq(schema.ledgerAccounts.providerId, pid2),
+      ),
+    )
+    .limit(1);
+  const pnlAcc = await ensureSystemAccount(db, "system_pnl", "USD");
+  await post(db, {
+    kind: "trade_pnl",
+    reference: `blowtest:${userId}`,
+    currency: "USD",
+    legs: [
+      { accountId: aacc!.id, amount: -10000 },
+      { accountId: pnlAcc, amount: 10000 },
+    ],
+  });
+  check(
+    "allocation blown to $0",
+    ((await activeAllocationValues(db, userId)).byProvider[pid2] ?? 0) === 0,
+  );
+
+  // Fund again and re-copy the SAME provider.
+  await adminCreditUser(db, { userId, amountUsd: 100 });
+  const copy2 = await allocate(db, { userId, providerId: pid2, amount: 100 });
+  check("copy #2 ok", copy2.ok);
+  check(
+    "re-copy tops up the same allocation (no duplicate row)",
+    copy1.ok && copy2.ok && copy1.allocationId === copy2.allocationId,
+  );
+  const activeForPid2 = (await listAllocations(db, userId)).filter(
+    (r) => r.allocation.status === "active" && r.allocation.providerId === pid2,
+  );
+  check("exactly one active allocation for the provider", activeForPid2.length === 1, `(${activeForPid2.length})`);
+  check(
+    "value is the new $100 only — lost capital did NOT come back",
+    ((await activeAllocationValues(db, userId)).byProvider[pid2] ?? 0) === 10000,
+    `(${(await activeAllocationValues(db, userId)).byProvider[pid2] ?? 0})`,
+  );
+  await assertLedgerBalanced(db, "after re-copy");
 
   /* --- Admin manual fund ------------------------------------------------ */
   console.log("\nAdmin manual fund");

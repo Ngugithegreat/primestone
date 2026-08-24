@@ -30,30 +30,42 @@ export async function GET() {
       is2FAEnabled(db, user.id),
     ]);
 
-  return NextResponse.json({
-    currency: "USD",
-    balanceMinor: cashMinor,
-    kycStatus: user.kycStatusCache,
-    twoFactor,
-    allocations: allocations.map((a) => ({
-      id: a.allocation.id,
-      amountMinor: a.allocation.amount,
-      // Live ledger value of this allocation (principal + settled P&L). Falls
-      // back to the committed principal for closed allocations.
+  // The live value of an active allocation is the provider's ledger balance,
+  // which is per-provider. Collapse any duplicate active rows for the same
+  // provider (legacy data from before top-up-on-recopy) to one, so the total
+  // isn't double-counted.
+  const seenActiveProviders = new Set<string>();
+  const allocationsOut = [];
+  for (const a of allocations) {
+    const al = a.allocation;
+    if (al.status === "active") {
+      if (seenActiveProviders.has(al.providerId)) continue;
+      seenActiveProviders.add(al.providerId);
+    }
+    allocationsOut.push({
+      id: al.id,
+      amountMinor: al.amount,
+      // Live ledger value (principal + settled P&L); committed principal for closed.
       valueMinor:
-        a.allocation.status === "active"
-          ? allocValues.byProvider[a.allocation.providerId] ?? a.allocation.amount
-          : a.allocation.amount,
-      status: a.allocation.status,
-      riskMultiplier: a.allocation.riskMultiplier,
-      startedAt: a.allocation.startedAt,
+        al.status === "active" ? allocValues.byProvider[al.providerId] ?? al.amount : al.amount,
+      status: al.status,
+      riskMultiplier: al.riskMultiplier,
+      startedAt: al.startedAt,
       provider: {
         id: a.provider.id,
         name: a.provider.name,
         strategy: a.provider.strategy,
         roi12m: a.provider.roi12m,
       },
-    })),
+    });
+  }
+
+  return NextResponse.json({
+    currency: "USD",
+    balanceMinor: cashMinor,
+    kycStatus: user.kycStatusCache,
+    twoFactor,
+    allocations: allocationsOut,
     payments: payments.map((p) => ({
       id: p.id,
       kind: p.kind,
