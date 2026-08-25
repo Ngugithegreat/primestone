@@ -45,6 +45,7 @@ import { allocate, deallocate, listAllocations } from "../src/server/allocations
 import {
   activeAllocationValues,
   closeProviderPosition,
+  liquidateBlownAllocations,
   openProviderPosition,
 } from "../src/server/copyEngine";
 import { ledgerEntries } from "../src/db/schema";
@@ -467,6 +468,72 @@ async function main() {
     `(${(await activeAllocationValues(db, userId)).byProvider[pid2] ?? 0})`,
   );
   await assertLedgerBalanced(db, "after re-copy");
+
+  /* --- Blown account is margin-called (stops trading) ------------------- */
+  console.log("\nBlown account margin call");
+  const prov3 = await createProvider(db, {
+    name: "MC Test FX",
+    strategy: "Test",
+    feeBps: 2000,
+    minInvestment: 100,
+    verified: true,
+  });
+  const pid3 = prov3.ok ? prov3.id : "";
+  check("mc provider created", prov3.ok);
+  await adminCreditUser(db, { userId, amountUsd: 100 });
+  const mcAlloc = await allocate(db, { userId, providerId: pid3, amount: 100 });
+  const mcAllocId = mcAlloc.ok ? mcAlloc.allocationId : "";
+  check("mc allocate ok", mcAlloc.ok);
+
+  // Open a provider position → mirrors an open copy position onto the allocation.
+  const mcPos = await openProviderPosition(db, {
+    providerId: pid3,
+    symbol: "BTCUSD",
+    side: "buy",
+    price: 100,
+    sizePct: 0.5,
+  });
+  check("mc position mirrored to the allocation", mcPos.ok && mcPos.mirrors === 1);
+  const openBefore = await db
+    .select({ id: schema.copyPositions.id })
+    .from(schema.copyPositions)
+    .where(and(eq(schema.copyPositions.allocationId, mcAllocId), eq(schema.copyPositions.status, "open")));
+  check("one open position before the blow", openBefore.length === 1);
+
+  // Blow the allocation to $0.
+  const [mcAcc] = await db
+    .select({ id: schema.ledgerAccounts.id })
+    .from(schema.ledgerAccounts)
+    .where(
+      and(
+        eq(schema.ledgerAccounts.kind, "client_allocation"),
+        eq(schema.ledgerAccounts.userId, userId),
+        eq(schema.ledgerAccounts.providerId, pid3),
+      ),
+    )
+    .limit(1);
+  await post(db, {
+    kind: "trade_pnl",
+    reference: `mcblow:${userId}`,
+    currency: "USD",
+    legs: [
+      { accountId: mcAcc!.id, amount: -10000 },
+      { accountId: pnlAcc, amount: 10000 },
+    ],
+  });
+
+  const voided = await liquidateBlownAllocations(db);
+  check("margin call voided the open position", voided >= 1, `(${voided})`);
+  const openAfter = await db
+    .select({ id: schema.copyPositions.id })
+    .from(schema.copyPositions)
+    .where(and(eq(schema.copyPositions.allocationId, mcAllocId), eq(schema.copyPositions.status, "open")));
+  check("no open positions left on the blown account", openAfter.length === 0);
+  check(
+    "blown account stays at $0 (did not revive)",
+    ((await activeAllocationValues(db, userId)).byProvider[pid3] ?? 0) === 0,
+  );
+  await assertLedgerBalanced(db, "after margin call");
 
   /* --- Admin manual fund ------------------------------------------------ */
   console.log("\nAdmin manual fund");

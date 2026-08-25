@@ -303,21 +303,59 @@ function pick<T>(arr: T[]): T {
  * Only instruments with a live price source are traded, so with no
  * MARKET_DATA_API_KEY set it trades crypto only (which is always live).
  */
+/**
+ * Margin call. When an allocation's equity falls below the minimum tradeable
+ * stake it is effectively blown, so liquidate its still-open positions at $0
+ * P&L — the account is out. This mirrors a real broker closing everything at a
+ * margin call: a dead account stops trading and can't revive on a lingering
+ * winning position. Voiding at $0 moves no money (opening never debited the
+ * allocation; only closes settle P&L), so the ledger is untouched.
+ */
+export async function liquidateBlownAllocations(db: Database): Promise<number> {
+  const active = await db
+    .select({ id: allocations.id, userId: allocations.userId, providerId: allocations.providerId })
+    .from(allocations)
+    .where(eq(allocations.status, "active"));
+
+  let voided = 0;
+  for (const a of active) {
+    const accId = await allocationAccountId(db, a.userId, a.providerId);
+    const bal = accId ? await balanceOf(db, accId) : 0;
+    if (bal >= MIN_STAKE_MINOR) continue; // still has equity to trade
+
+    const openMirrors = await db
+      .select({ id: copyPositions.id, entryPrice: copyPositions.entryPrice })
+      .from(copyPositions)
+      .where(and(eq(copyPositions.allocationId, a.id), eq(copyPositions.status, "open")));
+
+    for (const m of openMirrors) {
+      await db
+        .update(copyPositions)
+        .set({ status: "closed", realizedPnl: 0, exitPrice: m.entryPrice, closedAt: new Date() })
+        .where(eq(copyPositions.id, m.id));
+      voided++;
+    }
+  }
+  return voided;
+}
+
 export async function runEngineTick(
   db: Database,
 ): Promise<{ opened: number; closed: number; priced: number; mode: SettlementMode }> {
   const mode = settlementMode();
+  // Margin-call any blown accounts first, so they stop trading.
+  const voided = await liquidateBlownAllocations(db);
   // Admin-configurable risk per trade (% of each copier's balance).
   const riskFraction = (await getRiskPct(db)) / 100;
   const quotes = await getLiveQuotes();
   const symbols = Object.keys(quotes);
-  if (symbols.length === 0) return { opened: 0, closed: 0, priced: 0, mode };
+  if (symbols.length === 0) return { opened: 0, closed: voided, priced: 0, mode };
 
   const providers = await db
     .select()
     .from(signalProviders)
     .where(eq(signalProviders.active, true));
-  if (providers.length === 0) return { opened: 0, closed: 0, priced: symbols.length, mode };
+  if (providers.length === 0) return { opened: 0, closed: voided, priced: symbols.length, mode };
 
   // Which providers currently have money copying them?
   const activeAllocs = await db
@@ -327,7 +365,7 @@ export async function runEngineTick(
   const hasSubscribers = new Set(activeAllocs.map((a) => a.providerId));
 
   let opened = 0;
-  let closed = 0;
+  let closed = voided;
   const nowMs = Date.now();
 
   for (const provider of providers) {
