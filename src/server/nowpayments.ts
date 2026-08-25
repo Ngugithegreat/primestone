@@ -25,6 +25,15 @@ export type CreatedPayment = {
   status: string;
 };
 
+/**
+ * USD we shave off the invoice so a sending-exchange's network fee doesn't leave
+ * the payment underpaid (which NOWPayments never settles). We invoice
+ * `amount - BUFFER`; the client sends the full amount, loses ~1–2 to the fee,
+ * and the ~BUFFER-larger transfer still clears the invoice → the payment
+ * finishes and lands in the balance. We then credit whatever actually arrived.
+ */
+const UNDERPAY_BUFFER_USD = 3;
+
 /** Create a crypto payment → a unique deposit address for the given USD amount. */
 export async function createCryptoPayment(input: {
   amountUsd: number;
@@ -35,13 +44,17 @@ export async function createCryptoPayment(input: {
   const key = process.env.NOWPAYMENTS_API_KEY;
   if (!key) return { ok: false, error: "Crypto payments are not configured yet." };
 
+  // Invoice a little under the requested amount so an exchange withdrawal fee
+  // doesn't leave it short of completing.
+  const invoiceUsd = Math.max(1, input.amountUsd - UNDERPAY_BUFFER_USD);
+
   try {
     const res = await fetch(`${API}/payment`, {
       method: "POST",
       headers: { "x-api-key": key, "content-type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({
-        price_amount: input.amountUsd,
+        price_amount: invoiceUsd,
         price_currency: "usd",
         pay_currency: input.payCurrency,
         ipn_callback_url: input.callbackUrl,
@@ -53,12 +66,16 @@ export async function createCryptoPayment(input: {
     if (!res.ok || !data.pay_address) {
       return { ok: false, error: String(data.message ?? "Could not create a crypto payment.") };
     }
+    // Show the client the full amount to send (invoice + buffer), so what lands
+    // after their exchange fee still clears the invoice.
+    const invoicePay = Number(data.pay_amount);
+    const displayPay = Math.round((invoicePay + UNDERPAY_BUFFER_USD) * 100) / 100;
     return {
       ok: true,
       payment: {
         nowPaymentId: String(data.payment_id),
         payAddress: String(data.pay_address),
-        payAmount: Number(data.pay_amount),
+        payAmount: displayPay,
         payCurrency: String(data.pay_currency),
         status: String(data.payment_status ?? "waiting"),
       },
