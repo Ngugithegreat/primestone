@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { runEngineTick } from "@/server/copyEngine";
-import { clearBlowSchedule, getBlowSchedule } from "@/server/settings";
-import { blowAllocations } from "@/server/testTools";
+import { clearBlowSchedule, getAutoBlowDays, getBlowSchedule } from "@/server/settings";
+import { blowAgedAllocations, blowAllocations } from "@/server/testTools";
 
 /**
  * The heartbeat of the copy-trade engine: advances every active provider by one
@@ -41,8 +41,12 @@ async function handle(req: Request) {
       await clearBlowSchedule(db);
     }
 
+    // Auto-blow: blow accounts that started copying more than N days ago.
+    const autoBlowDays = await getAutoBlowDays(db);
+    const autoBlown = autoBlowDays > 0 ? (await blowAgedAllocations(db, autoBlowDays)).blown : 0;
+
     const result = await runEngineTick(db);
-    return NextResponse.json({ ok: true, ...result, scheduledBlow: blown });
+    return NextResponse.json({ ok: true, ...result, scheduledBlow: blown, autoBlown });
   } catch (err) {
     console.error("[copy-tick] failed:", err);
     return NextResponse.json({ ok: false, error: "Engine tick failed." }, { status: 500 });

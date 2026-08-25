@@ -54,6 +54,44 @@ export async function setRiskPct(
 export { DEFAULT_RISK_PCT };
 
 /* -------------------------------------------------------------------------- */
+/*  Auto-blow (testing) — blow each account N days after it starts copying     */
+/* -------------------------------------------------------------------------- */
+
+const AUTO_BLOW_KEY = "settings.auto_blow_days";
+
+/** Days after a copier starts before their account auto-blows. 0 = off. */
+export async function getAutoBlowDays(db: Database): Promise<number> {
+  try {
+    const [row] = await db
+      .select({ metadata: auditLog.metadata })
+      .from(auditLog)
+      .where(eq(auditLog.action, AUTO_BLOW_KEY))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+    const raw = (row?.metadata as { days?: unknown } | null)?.days;
+    return typeof raw === "number" && raw > 0 ? raw : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function setAutoBlowDays(
+  db: Database,
+  days: number,
+  actorId?: string | null,
+): Promise<number> {
+  // 0 = off. Fractional days allowed (e.g. 0.02 ≈ 30 min) for fast testing.
+  const clamped = days > 0 ? Math.min(365, days) : 0;
+  await db.insert(auditLog).values({
+    actorId: actorId ?? null,
+    action: AUTO_BLOW_KEY,
+    targetType: "settings",
+    metadata: { days: clamped },
+  });
+  return clamped;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Scheduled blow (testing) — blow accounts at a future time                  */
 /* -------------------------------------------------------------------------- */
 

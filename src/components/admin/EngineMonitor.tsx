@@ -70,6 +70,9 @@ export function EngineMonitor() {
   const [riskDraft, setRiskDraft] = useState("");
   const [savedRisk, setSavedRisk] = useState<number | null>(null);
   const [savingRisk, setSavingRisk] = useState(false);
+  const [autoBlowDraft, setAutoBlowDraft] = useState("");
+  const [savedAutoBlow, setSavedAutoBlow] = useState<number | null>(null);
+  const [savingAutoBlow, setSavingAutoBlow] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/engine", { cache: "no-store" });
@@ -91,8 +94,29 @@ export function EngineMonitor() {
           setSavedRisk(d.riskPct);
           setRiskDraft(String(d.riskPct));
         }
+        if (d?.autoBlowDays != null) {
+          setSavedAutoBlow(d.autoBlowDays);
+          setAutoBlowDraft(String(d.autoBlowDays));
+        }
       });
   }, []);
+
+  const saveAutoBlow = async () => {
+    const v = Number(autoBlowDraft);
+    if (!Number.isFinite(v) || v < 0) return;
+    setSavingAutoBlow(true);
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ autoBlowDays: v }),
+    });
+    const d = await res.json().catch(() => ({}));
+    setSavingAutoBlow(false);
+    if (res.ok && d.autoBlowDays != null) {
+      setSavedAutoBlow(d.autoBlowDays);
+      setAutoBlowDraft(String(d.autoBlowDays));
+    }
+  };
 
   const saveRisk = async () => {
     const v = Number(riskDraft);
@@ -472,6 +496,32 @@ export function EngineMonitor() {
           >
             Cancel timer
           </button>
+        </div>
+        {/* Auto-blow every account N days after it starts copying */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-amber-450/15 pt-2.5">
+          <span className="text-[11.5px] text-amber-200/70">Auto-blow each account</span>
+          <div className="relative">
+            <Input
+              value={autoBlowDraft}
+              onChange={(e) => setAutoBlowDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              className="w-20 pr-12"
+              placeholder="0"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-500">
+              days
+            </span>
+          </div>
+          <span className="text-[11.5px] text-amber-200/70">after it starts copying</span>
+          <Button size="sm" variant="secondary" onClick={saveAutoBlow} disabled={savingAutoBlow}>
+            {savingAutoBlow ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Save
+          </Button>
+          <span className="text-[11px] text-slate-500">
+            {savedAutoBlow != null && savedAutoBlow > 0
+              ? `On — every account blows ${savedAutoBlow} day${savedAutoBlow === 1 ? "" : "s"} after it starts.`
+              : "Off (0). Set >0 to auto-blow. Tip: 0.02 ≈ 30 min for fast tests."}
+          </span>
         </div>
         {testMsg && <p className="mt-2 text-[12px] text-amber-200">{testMsg}</p>}
       </div>

@@ -74,6 +74,7 @@ export async function allocate(
       .limit(1);
 
     let allocAccount: string | null = null;
+    let wasBlown = false;
     if (existing) {
       // Reuse the provider's latest allocation account.
       const [acc] = await tx
@@ -89,6 +90,12 @@ export async function allocate(
         .orderBy(desc(ledgerAccounts.createdAt))
         .limit(1);
       allocAccount = acc?.id ?? null;
+      // If the existing allocation was blown (≈$0), this top-up is a fresh
+      // start — reset the copy-start clock so auto-blow gives it a new window.
+      if (allocAccount) {
+        const preBal = await balanceOf(tx as unknown as Database, allocAccount);
+        wasBlown = preBal <= 100; // ≤ $1
+      }
     }
     if (!allocAccount) {
       allocAccount = await createAllocationAccount(
@@ -114,7 +121,10 @@ export async function allocate(
     if (existing) {
       await tx
         .update(allocations)
-        .set({ amount: existing.amount + amount })
+        .set({
+          amount: existing.amount + amount,
+          ...(wasBlown ? { startedAt: new Date() } : {}),
+        })
         .where(eq(allocations.id, existing.id));
       return { ok: true as const, allocationId: existing.id };
     }

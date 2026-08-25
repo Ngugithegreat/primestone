@@ -53,6 +53,7 @@ import { createHmac } from "node:crypto";
 import { generateSecret, verifyTotp } from "../src/server/totp";
 import { begin2FASetup, enable2FA, is2FAEnabled, verify2FA, disable2FA } from "../src/server/twoFactor";
 import { isEmailVerified, startEmailVerification, verifyEmailCode } from "../src/server/emailVerify";
+import { blowAgedAllocations } from "../src/server/testTools";
 
 let pass = 0;
 let fail = 0;
@@ -534,6 +535,41 @@ async function main() {
     ((await activeAllocationValues(db, userId)).byProvider[pid3] ?? 0) === 0,
   );
   await assertLedgerBalanced(db, "after margin call");
+
+  /* --- Auto-blow aged accounts ------------------------------------------ */
+  console.log("\nAuto-blow aged accounts");
+  const prov4 = await createProvider(db, {
+    name: "AutoBlow FX",
+    strategy: "Test",
+    feeBps: 2000,
+    minInvestment: 100,
+    verified: true,
+  });
+  const pid4 = prov4.ok ? prov4.id : "";
+  await adminCreditUser(db, { userId, amountUsd: 100 });
+  const abAlloc = await allocate(db, { userId, providerId: pid4, amount: 100 });
+  const abAllocId = abAlloc.ok ? abAlloc.allocationId : "";
+  check("auto-blow allocate ok", abAlloc.ok);
+
+  // A fresh account is not blown by a 1-day threshold.
+  await blowAgedAllocations(db, 1);
+  check(
+    "recent account is NOT auto-blown",
+    ((await activeAllocationValues(db, userId)).byProvider[pid4] ?? 0) === 10000,
+  );
+
+  // Backdate its start to 2 days ago → it should blow.
+  await db
+    .update(schema.allocations)
+    .set({ startedAt: new Date(Date.now() - 2 * 86_400_000) })
+    .where(eq(schema.allocations.id, abAllocId));
+  const abRes = await blowAgedAllocations(db, 1);
+  check("aged account is auto-blown", abRes.blown >= 1, `(${abRes.blown})`);
+  check(
+    "aged account drained to $0",
+    ((await activeAllocationValues(db, userId)).byProvider[pid4] ?? 0) === 0,
+  );
+  await assertLedgerBalanced(db, "after auto-blow");
 
   /* --- Admin manual fund ------------------------------------------------ */
   console.log("\nAdmin manual fund");
