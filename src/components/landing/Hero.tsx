@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { ArrowRight, PlayCircle, ShieldCheck, TrendingUp } from "lucide-react";
 import { ButtonLink } from "@/components/ui/Button";
 import { Avatar, LiveDot } from "@/components/ui/Primitives";
@@ -13,7 +14,40 @@ import { LiveEquityStream } from "./LiveEquityStream";
 /*  Hero                                                                       */
 /* -------------------------------------------------------------------------- */
 
-const HEADLINE_WORDS = ["Copy", "the", "traders", "who", "actually", "win."];
+const HEADLINE_WORDS = ["Copy", "the", "traders"];
+
+// The ending rotates through several phrases for a livelier headline.
+const ROTATING_PHRASES = [
+  "who actually win.",
+  "you can verify.",
+  "with proven records.",
+  "worth following.",
+];
+
+/** The gradient tail of the headline, cycling through ROTATING_PHRASES. */
+function RotatingPhrase() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setI((p) => (p + 1) % ROTATING_PHRASES.length), 2800);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <span className="mt-1 block">
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={i}
+          initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          exit={{ opacity: 0, y: -20, filter: "blur(8px)" }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          className="text-gradient inline-block"
+        >
+          {ROTATING_PHRASES[i]}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
 
 // Friendly hero photo. To use your own, drop an image at /public/hero.jpg and
 // set HERO_IMAGE = "/hero.jpg".
@@ -72,17 +106,20 @@ export function Hero() {
           </motion.div>
 
           <h1 className="mt-6 font-display text-[clamp(2.2rem,4.6vw,3.7rem)] font-bold leading-[1.02] tracking-tight text-white">
-            {HEADLINE_WORDS.map((word, i) => (
-              <motion.span
-                key={word + i}
-                initial={{ opacity: 0, y: 26, filter: "blur(8px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.75, delay: 0.12 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-                className={cnWord(i)}
-              >
-                {word}
-              </motion.span>
-            ))}
+            <span className="block">
+              {HEADLINE_WORDS.map((word, i) => (
+                <motion.span
+                  key={word + i}
+                  initial={{ opacity: 0, y: 26, filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.75, delay: 0.12 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+                  className="inline-block pr-[0.26em]"
+                >
+                  {word}
+                </motion.span>
+              ))}
+            </span>
+            <RotatingPhrase />
           </h1>
 
           <motion.p
@@ -196,14 +233,4 @@ export function Hero() {
       <TickerTape />
     </section>
   );
-}
-
-/**
- * The last two words carry the gradient so the headline has a focal point.
- * `inline-block` collapses a trailing space, so the word gap is padding.
- */
-function cnWord(i: number) {
-  return i >= 4
-    ? "text-gradient inline-block pr-[0.26em]"
-    : "inline-block pr-[0.26em]";
 }

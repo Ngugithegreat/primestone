@@ -30,17 +30,24 @@ export async function GET() {
 
   // Ledger cash balance per user.
   const cashByUser = new Map<string, number>();
+  // Live value currently in allocations (money that's copying) per user.
+  const copyingByUser = new Map<string, number>();
   if (ids.length) {
     const bals = await db
       .select({
         userId: ledgerAccounts.userId,
+        kind: ledgerAccounts.kind,
         total: sql<number>`coalesce(sum(${ledgerEntries.amount}),0)::bigint`,
       })
       .from(ledgerAccounts)
       .leftJoin(ledgerEntries, eq(ledgerEntries.accountId, ledgerAccounts.id))
-      .where(eq(ledgerAccounts.kind, "client_cash"))
-      .groupBy(ledgerAccounts.userId);
-    for (const b of bals) if (b.userId) cashByUser.set(b.userId, Number(b.total));
+      .where(inArray(ledgerAccounts.kind, ["client_cash", "client_allocation"]))
+      .groupBy(ledgerAccounts.userId, ledgerAccounts.kind);
+    for (const b of bals) {
+      if (!b.userId) continue;
+      const map = b.kind === "client_cash" ? cashByUser : copyingByUser;
+      map.set(b.userId, (map.get(b.userId) ?? 0) + Number(b.total));
+    }
   }
 
   // Deposit / withdrawal totals + KYC profiles + document counts.
@@ -78,6 +85,9 @@ export async function GET() {
       role: u.role,
       accountType: u.accountType,
       balanceMinor: cashByUser.get(u.id) ?? 0,
+      copyingMinor: copyingByUser.get(u.id) ?? 0,
+      // Live total the user sees on their side: spendable cash + money copying.
+      totalMinor: (cashByUser.get(u.id) ?? 0) + (copyingByUser.get(u.id) ?? 0),
       depositsMinor: depByUser.get(u.id) ?? 0,
       withdrawalsMinor: wdrByUser.get(u.id) ?? 0,
       joinedAt: u.createdAt,

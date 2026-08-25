@@ -53,6 +53,8 @@ type AdminUser = {
   role: string;
   accountType: string;
   balanceMinor: number;
+  copyingMinor: number;
+  totalMinor: number;
   depositsMinor: number;
   withdrawalsMinor: number;
   joinedAt: string;
@@ -295,7 +297,7 @@ export function AdminConsole() {
                   <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-slate-500">
                     <th className="px-4 py-3 font-medium">User</th>
                     <th className="px-4 py-3 font-medium">Country</th>
-                    <th className="px-4 py-3 text-right font-medium">Balance</th>
+                    <th className="px-4 py-3 text-right font-medium">Current balance</th>
                     <th className="px-4 py-3 text-right font-medium">Deposited</th>
                     <th className="px-4 py-3 font-medium">KYC</th>
                     <th className="px-4 py-3 font-medium">Docs</th>
@@ -328,7 +330,14 @@ export function AdminConsole() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[13px] text-slate-300">{u.flag} {u.country}</td>
-                      <td className="tnum px-4 py-3 text-right text-[13px] font-medium text-white">{usd(u.balanceMinor)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <p className="tnum text-[13px] font-semibold text-white">{usd(u.totalMinor)}</p>
+                        {u.copyingMinor > 0 && (
+                          <p className="tnum text-[11px] text-slate-500">
+                            {usd(u.balanceMinor)} free · {usd(u.copyingMinor)} copying
+                          </p>
+                        )}
+                      </td>
                       <td className="tnum px-4 py-3 text-right text-[13px] text-slate-400">{usd(u.depositsMinor)}</td>
                       <td className="px-4 py-3"><Badge tone={STATUS_META[u.kycStatus].tone}>{STATUS_META[u.kycStatus].label}</Badge></td>
                       <td className="tnum px-4 py-3 text-[13px] text-slate-400">{u.docCount}</td>
@@ -466,7 +475,9 @@ function UserDrawer({ user, onClose, onChanged }: { user: AdminUser; onClose: ()
 
           <Section title="Account">
             <div className="grid grid-cols-2 gap-2">
-              <Metric label="Balance" value={usd(user.balanceMinor)} />
+              <Metric label="Current balance" value={usd(user.totalMinor)} />
+              <Metric label="Available (free)" value={usd(user.balanceMinor)} />
+              <Metric label="Copying" value={usd(user.copyingMinor)} />
               <Metric label="Deposited" value={usd(user.depositsMinor)} />
               <Metric label="Withdrawn" value={usd(user.withdrawalsMinor)} />
               <Metric label="Account type" value={user.accountType} />
