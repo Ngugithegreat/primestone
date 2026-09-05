@@ -7,6 +7,7 @@ import {
   Faq,
   Features,
   Funding,
+  GlobalReach,
   HowItWorks,
   PlatformShowcase,
   SiteFooter,
@@ -27,6 +28,7 @@ export default function HomePage() {
         <TopTraders />
         <Features />
         <PlatformShowcase />
+        <GlobalReach />
         <AccountTypesSection />
         <Funding />
         <Testimonials />

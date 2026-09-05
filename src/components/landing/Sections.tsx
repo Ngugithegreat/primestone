@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/Primitives";
 import { TraderCard } from "@/components/traders/TraderCard";
 import { LiveCandles } from "./LiveCandles";
+import { WorldGlobe } from "./WorldGlobe";
+import { PhoneMockup } from "./PhoneMockup";
 import { ACCOUNT_TYPES } from "@/lib/accounts";
 import { COMPANY } from "@/lib/company";
 import { FEATURED_TRADERS, PLATFORM_STATS, TRADERS } from "@/lib/traders";
@@ -135,6 +137,55 @@ function Heading({
       </div>
       {action && <Reveal delay={0.16}>{action}</Reveal>}
     </div>
+  );
+}
+
+/* ========================================================================== */
+/*  Global reach — interactive globe + phone preview                          */
+/* ========================================================================== */
+
+export function GlobalReach() {
+  return (
+    <section className="relative overflow-hidden py-24 lg:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <Heading
+          eyebrow="A global desk"
+          title={
+            <>
+              Copiers in <span className="text-gradient">60+ countries</span>
+            </>
+          }
+          body="From Nairobi to New York, people copy verified traders on PrimeStone every day. Spin the globe — and see the whole desk in your pocket."
+        />
+
+        <div className="mt-14 grid items-center gap-10 lg:grid-cols-2">
+          {/* Interactive globe */}
+          <Reveal>
+            <div className="relative">
+              <WorldGlobe />
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-center">
+                {[
+                  [`${(PLATFORM_STATS.copiers / 1_000_000).toFixed(1)}M+`, "copiers"],
+                  ["60+", "countries"],
+                  [`$${(PLATFORM_STATS.volume / 1e9).toFixed(1)}B`, "copied"],
+                ].map(([v, l]) => (
+                  <div key={l}>
+                    <p className="font-display text-[22px] font-bold text-white">{v}</p>
+                    <p className="text-[12px] text-slate-500">{l}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-center text-[11.5px] text-slate-600">Drag to spin · hover a city</p>
+            </div>
+          </Reveal>
+
+          {/* Phone preview */}
+          <Reveal delay={0.1}>
+            <PhoneMockup />
+          </Reveal>
+        </div>
+      </div>
+    </section>
   );
 }
 
