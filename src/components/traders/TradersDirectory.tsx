@@ -15,6 +15,7 @@ import {
   type RealProvider,
 } from "@/lib/accountClient";
 import { useRealAccount } from "@/lib/useRealAccount";
+import { setPendingCopy } from "@/lib/pendingCopy";
 import { useStore } from "@/lib/store";
 import { TRADERS, type RiskLevel, type Trader } from "@/lib/traders";
 import { cn } from "@/lib/utils";
@@ -86,10 +87,13 @@ export function TradersDirectory() {
   // send them to the wallet to deposit first.
   const copyReal = async (t: Trader) => {
     if (real.balanceMinor <= 0) {
+      // Copy-first: remember the choice; the deposit they make on the wallet
+      // will auto-allocate to this provider.
+      setPendingCopy(t.id, t.name);
       pushToast({
         tone: "info",
-        title: "Deposit to start copying",
-        body: "Add funds to your account, then copy this provider.",
+        title: `You'll copy ${t.name}`,
+        body: "Deposit on the next screen — your funds start copying automatically.",
       });
       router.push("/wallet");
       return;

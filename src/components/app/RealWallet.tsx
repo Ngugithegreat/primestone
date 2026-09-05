@@ -35,6 +35,7 @@ import {
   type RealProvider,
 } from "@/lib/accountClient";
 import { useStore } from "@/lib/store";
+import { clearPendingCopy, getPendingCopy, setPendingCopy } from "@/lib/pendingCopy";
 import { WithdrawPanel } from "./WithdrawPanel";
 import { cn, initialsOf } from "@/lib/utils";
 
@@ -49,12 +50,43 @@ export function RealWallet() {
   const [providers, setProviders] = useState<RealProvider[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<AccountSnapshot | null> => {
     const [acc, provs] = await Promise.all([getAccount(), getRealProviders()]);
     setAccount(acc);
     setProviders(provs);
     setLoading(false);
+    return acc;
   }, []);
+
+  // After a deposit credits, if the user chose a provider to copy first, put the
+  // freshly-deposited funds straight to work with them — no separate step.
+  const handleCredited = useCallback(async () => {
+    const acc = await refresh();
+    const pending = getPendingCopy();
+    const avail = acc?.balanceMinor ?? 0;
+    if (!pending || avail <= 0) return;
+    clearPendingCopy();
+    const res = await subscribeToProvider({ providerId: pending.providerId, amount: avail / 100 });
+    if (res.ok) {
+      pushToast({
+        tone: "success",
+        title: `Now copying ${pending.name}`,
+        body: `${usd(avail)} from your deposit is now copying ${pending.name}.`,
+      });
+      await refresh();
+    } else {
+      pushToast({
+        tone: "info",
+        title: "Deposit credited",
+        body: `Couldn't auto-start copying (${res.error}). You can copy from your wallet.`,
+      });
+    }
+  }, [refresh, pushToast]);
+
+  // Void-typed wrapper for children that just want a "reload" callback.
+  const reload = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
   useEffect(() => {
     refresh();
@@ -124,23 +156,23 @@ export function RealWallet() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <DepositPanel defaultPhone={user?.phone ?? ""} onCredited={refresh} />
+        <DepositPanel defaultPhone={user?.phone ?? ""} onCredited={handleCredited} />
         <WithdrawPanel
           balanceMinor={balanceMinor}
           kycStatus={account?.kycStatus ?? "unverified"}
           twoFactor={account?.twoFactor ?? false}
-          onDone={refresh}
+          onDone={reload}
         />
       </div>
 
       <Providers
         providers={providers}
         balanceMinor={balanceMinor}
-        onSubscribed={refresh}
+        onSubscribed={reload}
         pushToast={pushToast}
       />
 
-      <Allocations account={account} onChanged={refresh} pushToast={pushToast} />
+      <Allocations account={account} onChanged={reload} pushToast={pushToast} />
       <History account={account} />
     </div>
   );
@@ -865,11 +897,24 @@ function Providers({
                 </motion.div>
               ) : (
                 <button
-                  onClick={() => setOpenId(p.id)}
-                  disabled={balanceMinor <= 0}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-[12.5px] font-medium text-slate-200 transition-colors hover:bg-white/[0.07] disabled:opacity-40"
+                  onClick={() => {
+                    if (balanceMinor <= 0) {
+                      // Copy-first: remember the pick, then the deposit they make
+                      // auto-allocates to this provider.
+                      setPendingCopy(p.id, p.name);
+                      pushToast({
+                        tone: "info",
+                        title: `You'll copy ${p.name}`,
+                        body: "Deposit above — your funds start copying automatically.",
+                      });
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    } else {
+                      setOpenId(p.id);
+                    }
+                  }}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-[12.5px] font-medium text-slate-200 transition-colors hover:bg-white/[0.07]"
                 >
-                  {balanceMinor <= 0 ? "Deposit to copy" : "Copy this provider"}
+                  {balanceMinor <= 0 ? `Deposit & copy ${p.name}` : "Copy this provider"}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               )}
