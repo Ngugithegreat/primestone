@@ -155,7 +155,7 @@ export function GlobalReach() {
               Copiers in <span className="text-gradient">60+ countries</span>
             </>
           }
-          body="From Nairobi to New York, people copy verified traders on PrimeStone every day. Spin the globe — and see the whole desk in your pocket."
+          body="Wherever you are, people copy verified traders on PrimeStone every day. Spin the globe — and see the whole desk in your pocket."
         />
 
         <div className="mt-14 grid items-center gap-10 lg:grid-cols-2">

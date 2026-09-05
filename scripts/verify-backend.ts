@@ -610,6 +610,29 @@ async function main() {
   );
   await assertLedgerBalanced(db, "after crypto actual-amount credit");
 
+  // A partially_paid callback with 0 actually_paid must NOT credit the invoice
+  // amount (the over-credit bug: $300 credited for 8.45 USDT received).
+  const beforeZero = await clientCashBalance(db, userId);
+  const zeroPid = await initiateDeposit(db, {
+    userId,
+    provider: "crypto",
+    amount: 30000, // invoiced $300
+    currency: "USD",
+    creditedAmount: 30000,
+    providerRequestId: "np_test_zero",
+  });
+  await confirmDeposit(db, {
+    paymentId: zeroPid,
+    externalRef: "nowpay:np_test_zero",
+    creditMinorOverride: 0, // nothing actually arrived yet
+  });
+  check(
+    "zero actually_paid credits nothing (no over-credit)",
+    (await clientCashBalance(db, userId)) - beforeZero === 0,
+    `(delta ${(await clientCashBalance(db, userId)) - beforeZero})`,
+  );
+  await assertLedgerBalanced(db, "after zero-amount crypto callback");
+
   /* --- Email verification ----------------------------------------------- */
   console.log("\nEmail verification");
   check("email unverified by default", !(await isEmailVerified(db, userId)));

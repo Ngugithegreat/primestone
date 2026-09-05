@@ -109,11 +109,18 @@ export async function confirmDeposit(
     }
 
     // The account is denominated in USD; credit the converted amount — or the
-    // actual received amount when an override is given (crypto).
+    // actual received amount when an override is given (crypto). An override is
+    // respected even when it's 0: a partially_paid crypto callback whose funds
+    // aren't counted yet must credit nothing, NOT fall back to the invoice
+    // amount (that over-credited — e.g. $300 credited for 8.45 USDT received).
     const creditMinor =
-      input.creditMinorOverride && input.creditMinorOverride > 0
+      input.creditMinorOverride !== undefined
         ? input.creditMinorOverride
         : payment.creditedAmount ?? payment.amount;
+    if (!(creditMinor > 0)) {
+      // Nothing real has arrived yet — leave the payment pending, don't complete.
+      return { ok: false, alreadyProcessed: false, credited: null as CreditedInfo | null };
+    }
     const clearing = await ensureSystemAccount(tx as unknown as Database, "system_deposits_clearing", "USD");
     const cash = await ensureClientCashAccount(tx as unknown as Database, payment.userId, "USD");
 
