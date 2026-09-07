@@ -175,7 +175,7 @@ export function GlobalReach() {
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-center text-[11.5px] text-slate-600">Drag to spin · hover a city</p>
+              <p className="mt-2 text-center text-[11.5px] text-slate-600">Drag to spin the globe</p>
             </div>
           </Reveal>
 

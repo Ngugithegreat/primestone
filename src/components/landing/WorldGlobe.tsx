@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * An interactive dotted globe you can spin with the mouse/finger. Renders a
@@ -70,7 +70,6 @@ function isLand(lat: number, lng: number): boolean {
 
 export function WorldGlobe() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hover, setHover] = useState<{ x: number; y: number; name: string } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -95,7 +94,6 @@ export function WorldGlobe() {
     let lastX = 0;
     let raf = 0;
     let size = 0;
-    const markerScreen: { x: number; y: number; z: number; name: string }[] = [];
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -163,14 +161,12 @@ export function WorldGlobe() {
         }
       }
 
-      // city markers
-      markerScreen.length = 0;
+      // anonymous "copier hub" markers (no place names — global by design)
       const now = performance.now();
       for (const { c, p } of cityPts) {
         const [x, y, z] = rot(p);
         const px = cx + x * rad;
         const py = cy - y * rad;
-        markerScreen.push({ x: px, y: py, z, name: c.name });
         if (z < -0.1) continue; // behind the globe
         const front = (z + 1) / 2;
         const pulse = 0.5 + 0.5 * Math.sin(now / 500 + c.lng);
@@ -207,26 +203,11 @@ export function WorldGlobe() {
       canvas.setPointerCapture(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
-      if (dragging) {
-        const dx = e.clientX - lastX;
-        lastX = e.clientX;
-        yaw += dx * 0.008;
-        vel = dx * 0.0016; // fling → inertia
-      } else {
-        // hover detection over markers
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        let found: { x: number; y: number; name: string } | null = null;
-        for (const m of markerScreen) {
-          if (m.z < -0.1) continue;
-          if (Math.hypot(mx - m.x, my - m.y) < 10) {
-            found = { x: m.x, y: m.y, name: m.name };
-            break;
-          }
-        }
-        setHover(found);
-      }
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      lastX = e.clientX;
+      yaw += dx * 0.008;
+      vel = dx * 0.0016; // fling → inertia
     };
     const onUp = (e: PointerEvent) => {
       dragging = false;
@@ -239,7 +220,6 @@ export function WorldGlobe() {
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointerleave", () => setHover(null));
 
     return () => {
       cancelAnimationFrame(raf);
@@ -257,14 +237,6 @@ export function WorldGlobe() {
         className="h-full w-full cursor-grab touch-none select-none active:cursor-grabbing"
         style={{ width: "100%", height: "100%" }}
       />
-      {hover && (
-        <span
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-white/10 bg-ink-900/90 px-2 py-1 text-[11px] font-medium text-white backdrop-blur"
-          style={{ left: hover.x, top: hover.y - 8 }}
-        >
-          {hover.name}
-        </span>
-      )}
     </div>
   );
 }
